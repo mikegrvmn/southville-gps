@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Southville Gate Pass System — Preview</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* ── RESET & BASE ───────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --school:#422467;--school-d:#2e1847;--school-l:#5a3285;--school-s:#f0ebf7;
+  --teal:#00c9b1;--teal-d:#00a899;--teal-s:#e0faf7;
+  --bg:#f5f4f8;--white:#fff;
+  --border:#e5e7eb;--border2:#d1d5db;
+  --text:#1f2937;--text2:#6b7280;--text3:#9ca3af;
+  --green:#16a34a;--green-s:#dcfce7;
+  --yellow:#d97706;--yellow-s:#fef9c3;
+  --red:#dc2626;--red-s:#fee2e2;
+  --orange:#ea580c;--orange-s:#ffedd5;
+  --blue:#2563eb;--blue-s:#dbeafe;
+  --radius:10px;--radius-sm:7px;--radius-lg:14px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.1);
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;height:100vh;overflow:hidden}
+button{cursor:pointer;border:none;font-family:inherit}
+input,select,textarea{font-family:inherit}
+a{text-decoration:none;color:inherit}
+
+/* ── APP SHELL ──────────────────────────────────────────────── */
+.app{display:flex;height:100vh}
+.sidebar{width:220px;min-width:220px;background:var(--school);display:flex;flex-direction:column;position:relative;z-index:10}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:54px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px;flex-shrink:0;box-shadow:var(--shadow)}
+.content{flex:1;overflow-y:auto;padding:22px}
+
+/* ── SIDEBAR ────────────────────────────────────────────────── */
+.logo-wrap{padding:16px 14px 14px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+.logo-icon{width:36px;height:36px;background:var(--teal);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#003d35;flex-shrink:0}
+.logo-name{font-size:11px;font-weight:700;color:#fff;line-height:1.3}
+.logo-sy{font-size:10px;color:var(--teal);font-weight:600;letter-spacing:.04em}
+.nav{flex:1;padding:10px 8px;overflow-y:auto}
+.nav-sec{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.09em;padding:12px 8px 4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:7.5px 10px;border-radius:var(--radius-sm);color:rgba(255,255,255,.65);font-size:12.5px;cursor:pointer;transition:.15s;margin-bottom:1px;position:relative;border:none;background:transparent;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.1);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.15);color:#fff;font-weight:600}
+.nav-item.active::before{content:'';position:absolute;left:0;top:22%;bottom:22%;width:3px;background:var(--teal);border-radius:0 3px 3px 0}
+.nav-badge{background:var(--teal);color:#003d35;border-radius:99px;font-size:9.5px;font-weight:700;padding:1px 6px;margin-left:auto}
+.sidebar-foot{padding:10px 8px;border-top:1px solid rgba(255,255,255,.1)}
+.user-pill{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:.15s}
+.user-pill:hover{background:rgba(255,255,255,.08)}
+.av{width:28px;height:28px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#003d35;flex-shrink:0;border:2px solid rgba(255,255,255,.2)}
+.uname{font-size:11.5px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.urole{font-size:10px;color:rgba(255,255,255,.45)}
+.logout{font-size:10.5px;color:rgba(255,255,255,.35);padding:3px 10px;cursor:pointer;transition:.15s;background:none;border:none;width:100%;text-align:left}
+.logout:hover{color:rgba(255,255,255,.7)}
+
+/* ── TOPBAR ─────────────────────────────────────────────────── */
+.topbar-title{font-size:15px;font-weight:700;flex:1;color:var(--text)}
+.campus-badge{background:var(--school-s);color:var(--school);border:1px solid rgba(66,36,103,.2);border-radius:99px;padding:4px 11px;font-size:11px;font-weight:600}
+
+/* ── BUTTONS ────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600;border:none;cursor:pointer;transition:.15s;white-space:nowrap}
+.btn-school{background:var(--school);color:#fff}.btn-school:hover{background:var(--school-l)}
+.btn-teal{background:var(--teal);color:#003d35;font-weight:700}.btn-teal:hover{background:var(--teal-d)}
+.btn-ghost{background:#fff;color:var(--school);border:1px solid var(--border2)}.btn-ghost:hover{background:var(--school-s)}
+.btn-danger{background:var(--red-s);color:var(--red);border:1px solid rgba(220,38,38,.2)}.btn-danger:hover{background:#fecaca}
+.btn-success{background:var(--green-s);color:var(--green);border:1px solid rgba(22,163,74,.2)}.btn-success:hover{background:#bbf7d0}
+.btn-warn{background:var(--yellow-s);color:var(--yellow);border:1px solid rgba(217,119,6,.2)}
+.btn-sm{padding:5px 10px;font-size:11.5px}
+.btn-xs{padding:3px 8px;font-size:11px}
+
+/* ── CARDS ──────────────────────────────────────────────────── */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);gap:10px}
+.card-title{font-size:13.5px;font-weight:700;color:var(--text)}
+.card-sub{font-size:11px;color:var(--text3);margin-top:1px}
+
+/* ── STATS ──────────────────────────────────────────────────── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.stat{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.stat-ico{font-size:22px;margin-bottom:8px}
+.stat-val{font-size:26px;font-weight:800;line-height:1}
+.stat-lbl{font-size:11px;color:var(--text2);font-weight:500;margin-top:4px}
+.stat-sub{font-size:10.5px;margin-top:5px}
+
+/* ── TABLE ──────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:9px 12px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);background:#fafafa;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.tbl-actions{display:flex;gap:5px;opacity:0;transition:.15s}
+tr:hover .tbl-actions{opacity:1}
+
+/* ── BADGES ─────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%}
+.b-active{background:var(--green-s);color:var(--green)}.b-active::before{background:var(--green)}
+.b-pending{background:var(--yellow-s);color:var(--yellow)}.b-pending::before{background:var(--yellow)}
+.b-approved{background:#d1fae5;color:#065f46}.b-approved::before{background:#059669}
+.b-rejected{background:var(--red-s);color:var(--red)}.b-rejected::before{background:var(--red)}
+.b-suspended{background:var(--orange-s);color:var(--orange)}.b-suspended::before{background:var(--orange)}
+.b-revoked{background:#fecdd3;color:#9f1239}.b-revoked::before{background:#be123c}
+.b-expired{background:#f3f4f6;color:var(--text3)}.b-expired::before{background:var(--text3)}
+.b-perm{background:var(--school-s);color:var(--school)}.b-perm::before{background:var(--school)}
+.b-temp{background:var(--teal-s);color:var(--teal-d)}.b-temp::before{background:var(--teal)}
+.b-forapproval{background:var(--blue-s);color:var(--blue)}.b-forapproval::before{background:var(--blue)}
+
+/* ── FORMS ──────────────────────────────────────────────────── */
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg.full{grid-column:1/-1}
+.fg label{font-size:10.5px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em}
+.fi{background:#fafafa;border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);outline:none;width:100%;transition:.15s;font-size:13px}
+.fi:focus{border-color:var(--school);box-shadow:0 0 0 3px rgba(66,36,103,.1);background:#fff}
+select.fi{background:#fafafa}
+textarea.fi{resize:vertical;min-height:68px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.chk-row{display:flex;align-items:center;gap:7px;font-size:12.5px;padding:6px 0}
+.chk-row input[type=checkbox]{accent-color:var(--school);width:15px;height:15px}
+
+/* ── MODAL ──────────────────────────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal{background:var(--white);border:1px solid var(--border);border-radius:var(--radius-lg);width:540px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-lg{width:680px}
+.modal-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:1}
+.modal-title{font-size:14.5px;font-weight:700}
+.modal-body{padding:20px}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:#fafafa;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+.close-btn{width:28px;height:28px;border-radius:99px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:var(--text2)}
+.close-btn:hover{background:var(--red-s);color:var(--red)}
+
+/* ── FILTER PILLS ────────────────────────────────────────────── */
+.pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.pill{padding:4px 12px;border-radius:99px;font-size:11.5px;cursor:pointer;border:1px solid var(--border);color:var(--text2);transition:.15s;font-weight:500;background:#fff}
+.pill:hover{border-color:var(--border2);color:var(--text)}
+.pill.on{background:var(--school-s);color:var(--school);border-color:rgba(66,36,103,.3);font-weight:600}
+
+/* ── SEARCH ─────────────────────────────────────────────────── */
+.search-wrap{position:relative}
+.search-wrap input{padding-left:30px}
+.si{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px;pointer-events:none}
+
+/* ── PASS CARD ───────────────────────────────────────────────── */
+.pass-card{background:linear-gradient(180deg,#0d1a3a 0%,#0a1228 100%);border-radius:18px;width:300px;margin:0 auto;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.5);border:1px solid rgba(0,201,177,.2)}
+.pass-hdr{background:#00c9b1;padding:13px 16px;text-align:center}
+.pass-school{font-size:9px;font-weight:800;color:#003d35;letter-spacing:.08em;text-transform:uppercase}
+.pass-title{font-size:15px;font-weight:900;color:#003d35;letter-spacing:.03em;margin:1px 0}
+.pass-type-lbl{font-size:8px;font-weight:700;color:#005548;letter-spacing:.1em;text-transform:uppercase}
+.pass-body{padding:18px 16px}
+.pass-photo{width:76px;height:76px;border-radius:50%;border:3px solid #00c9b1;margin:0 auto 12px;overflow:hidden;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#00c9b1}
+.pass-name{font-size:17px;font-weight:800;color:#fff;text-align:center;margin-bottom:2px}
+.pass-grade{font-size:11.5px;color:#8892aa;text-align:center;margin-bottom:13px}
+.pass-hr{height:1px;background:rgba(255,255,255,.07);margin:11px 0}
+.pass-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.pf{background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px}
+.pf-lbl{font-size:7.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#00c9b1;margin-bottom:2px}
+.pf-val{font-size:11.5px;font-weight:700;color:#fff}
+.pf-val.mono{font-family:monospace;font-size:10.5px;color:#00c9b1}
+.pf-val.ok{color:#3ddc84}
+.pass-exit{background:rgba(0,201,177,.09);border:1px solid rgba(0,201,177,.22);border-radius:8px;padding:7px 10px;font-size:10px;color:#00c9b1;font-weight:600;text-align:center;margin-bottom:13px}
+.pass-qr{background:#fff;border-radius:10px;padding:9px;display:flex;justify-content:center;align-items:center;margin-bottom:9px}
+.pass-scan-lbl{font-size:8px;font-weight:800;color:#00c9b1;letter-spacing:.12em;text-align:center;text-transform:uppercase;margin-bottom:11px}
+.pass-foot{padding:9px 16px;border-top:1px solid rgba(255,255,255,.05);text-align:center;font-size:9px;color:#4a5568}
+
+/* ── SCANNER ─────────────────────────────────────────────────── */
+.scan-area{background:var(--school-s);border:2px dashed rgba(66,36,103,.25);border-radius:var(--radius);padding:28px;text-align:center}
+.scan-ring{width:80px;height:80px;border:3px solid var(--teal);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,201,177,.4)}50%{box-shadow:0 0 0 12px rgba(0,201,177,0)}}
+.scan-ok{background:#f0fdf4;border:2px solid #86efac;border-radius:var(--radius);padding:14px;margin-top:12px}
+.scan-fail{background:var(--red-s);border:2px solid #fca5a5;border-radius:var(--radius);padding:14px;margin-top:12px}
+.feed-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.feed-row:last-child{border-bottom:none}
+
+/* ── ALERTS ──────────────────────────────────────────────────── */
+.alert{padding:10px 14px;border-radius:var(--radius-sm);font-size:12.5px;margin-bottom:14px}
+.alert-info{background:var(--school-s);border:1px solid rgba(66,36,103,.2);color:var(--school)}
+.alert-warn{background:var(--yellow-s);border:1px solid rgba(217,119,6,.25);color:var(--yellow)}
+.alert-teal{background:var(--teal-s);border:1px solid rgba(0,201,177,.3);color:#007a6e}
+.alert-success{background:var(--green-s);border:1px solid rgba(22,163,74,.25);color:var(--green)}
+
+/* ── TABS ────────────────────────────────────────────────────── */
+.tab-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tab{padding:8px 16px;font-size:12.5px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.15s;font-weight:500}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--teal-d);border-bottom-color:var(--teal);font-weight:600}
+
+/* ── MISC ────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:44px 20px;color:var(--text2)}
+.empty-ico{font-size:38px;margin-bottom:12px;opacity:.3}
+.empty-txt{font-size:13.5px;font-weight:600}
+.empty-sub{font-size:11.5px;color:var(--text3);margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.flex{display:flex}.gap8{gap:8px}.gap12{gap:12px}.items-c{align-items:center}.justify-b{justify-content:space-between}
+.mt4{margin-top:4px}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}
+.muted{color:var(--text2)}.danger{color:var(--red)}.success{color:var(--green)}.teal{color:var(--teal-d)}
+.bold{font-weight:700}.mono{font-family:monospace}
+.bar-bg{background:#f3f4f6;border-radius:4px;height:9px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.divider{height:1px;background:var(--border);margin:14px 0}
+.toast{position:fixed;bottom:22px;right:22px;z-index:999;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:11px 16px;font-size:12.5px;font-weight:600;box-shadow:var(--shadow-md);display:flex;align-items:center;gap:8px;animation:toastin .2s ease;max-width:320px}
+@keyframes toastin{from{opacity:0;transform:translateY(8px)}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── LOGIN ───────────────────────────────────────────────────── */
+.login-bg{display:flex;align-items:center;justify-content:center;min-height:100vh;background:radial-gradient(ellipse at 30% 20%,rgba(66,36,103,.35) 0%,transparent 55%),#f5f4f8}
+.login-card{background:var(--white);border:1px solid var(--border);border-radius:16px;padding:38px;width:390px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,.12)}
+.login-logo{width:58px;height:58px;background:var(--school);border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;border:3px solid var(--teal)}
+.rq{padding:4px 10px;border-radius:99px;border:1px solid var(--border);font-size:11px;cursor:pointer;color:var(--text2);transition:.15s;font-weight:500;background:transparent}
+.rq:hover,.rq.sel{background:var(--school-s);color:var(--school);border-color:rgba(66,36,103,.3)}
+
+/* ── REPORT BARS ─────────────────────────────────────────────── */
+.rbar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
+.rbar-lbl{width:88px;color:var(--text2);text-align:right;flex-shrink:0;font-size:11px}
+.rbar-val{width:28px;text-align:right;font-weight:700;flex-shrink:0}
+
+/* ── VIDEO/CAMERA ────────────────────────────────────────────── */
+#cam-video{width:100%;border-radius:10px;display:none;background:#000;max-height:220px;object-fit:cover}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// DATA STORE
+// ════════════════════════════════════════════════════════════════
+const SY = '2025-2026';
+const CAMPUSES = [
+  {id:'lux',  name:'Luxembourg Campus', gates:['Gate 1','Gate 2 (Main Gate)','College Gate'],    levels:'Grades 7–12'},
+  {id:'mun',  name:'Munich Campus',     gates:['Munich Front Gate'],                             levels:'Pre School – Grade 6'},
+  {id:'trop', name:'Tropical Campus',   gates:['Tropical Gate'],                                 levels:'IB Year 1 & 2'},
+  {id:'star', name:'STAR Campus',       gates:['STAR Main Gate'],                                levels:'Pre School – Grade 6'},
+];
+const ROLES = {
+  system_admin:     {label:'System Admin',     color:'#422467'},
+  deputy_principal: {label:'Deputy Principal', color:'#00a899'},
+  discipline_head:  {label:'Discipline Head',  color:'#ea580c'},
+  secretary:        {label:'Secretary',        color:'#d97706'},
+  student_affairs:  {label:'Student Affairs',  color:'#16a34a'},
+};
+const DB = {
+  currentUser: null,
+  users: [
+    {id:'u1',name:'Maria Santos',   email:'msantos@southville.edu.ph', role:'system_admin',     campus:'lux', pw:'Admin@1234',       av:'MS'},
+    {id:'u2',name:'Dr. Ana Reyes',  email:'areyes@southville.edu.ph',  role:'deputy_principal', campus:'lux', pw:'Deputy@1234',      av:'AR'},
+    {id:'u3',name:'John dela Cruz', email:'jdelacruz@southville.edu.ph',role:'discipline_head', campus:'lux', pw:'Discipline@1234',  av:'JD'},
+    {id:'u4',name:'Luz Garcia',     email:'lgarcia@southville.edu.ph', role:'secretary',        campus:'lux', pw:'Secretary@1234',   av:'LG'},
+    {id:'u5',name:'Ben Torres',     email:'btorres@southville.edu.ph', role:'student_affairs',  campus:'mun', pw:'Affairs@1234',     av:'BT'},
+  ],
+  students:[
+    {id:'s1',name:'Jang, Eunyul',     sid:'23-3454',grade:'Grade 7',  section:'Enthusiasm',campus:'lux', parent:'Mr. Jang',     pEmail:'parent.jang@gmail.com',   photo:'👧',status:'active'},
+    {id:'s2',name:'Santos, Mia',      sid:'23-1001',grade:'Grade 10', section:'Diligence', campus:'lux', parent:'Mrs. Santos',  pEmail:'santos.parent@gmail.com', photo:'👩',status:'active'},
+    {id:'s3',name:'Reyes, Carlo',     sid:'24-2045',grade:'Grade 8',  section:'Excellence',campus:'lux', parent:'Mr. Reyes',    pEmail:'reyes.family@gmail.com',  photo:'👦',status:'active'},
+    {id:'s4',name:'Kim, Soo',         sid:'23-3888',grade:'IB Year 1',section:'Alpha',     campus:'trop',parent:'Mrs. Kim',     pEmail:'kim.parent@gmail.com',    photo:'👧',status:'active'},
+    {id:'s5',name:'Mendoza, Luis',    sid:'22-0055',grade:'Grade 5',  section:'Integrity', campus:'mun', parent:'Mr. Mendoza',  pEmail:'mendoza.par@gmail.com',   photo:'👦',status:'active'},
+    {id:'s6',name:'Lee, Hannah',      sid:'23-4112',grade:'Grade 9',  section:'Wisdom',    campus:'lux', parent:'Ms. Lee',      pEmail:'lee.parent@gmail.com',    photo:'👩',status:'active'},
+    {id:'s7',name:'Cruz, Marco',      sid:'24-1500',grade:'Grade 11', section:'Bravery',   campus:'lux', parent:'Mr. Cruz',     pEmail:'cruz.par@gmail.com',      photo:'👦',status:'active'},
+    {id:'s8',name:'Park, Jiyeon',     sid:'23-2200',grade:'IB Year 2',section:'Beta',      campus:'trop',parent:'Mrs. Park',    pEmail:'park.par@gmail.com',      photo:'👧',status:'active'},
+  ],
+  passes:[
+    {id:'p1',sid:'s1',no:'PGP-MP8J4YRJ-9V0D',type:'permanent',status:'active',  gates:['Gate 2 (Main Gate)'],exit:'Fetched by Parent or Authorized Guardian',from:'2025-06-01',until:'2026-05-31',by:'u3',at:'2025-06-01',sy:SY},
+    {id:'p2',sid:'s2',no:'PGP-LX3K8MNP-2R5A',type:'permanent',status:'active',  gates:['Gate 1','Gate 2 (Main Gate)'],exit:'Go home alone',from:'2025-06-05',until:'2026-05-31',by:'u3',at:'2025-06-05',sy:SY},
+    {id:'p3',sid:'s3',no:'PGP-WQ7B2XCY-4F1E',type:'permanent',status:'pending', gates:['Gate 1'],exit:'Fetched by Parent or Authorized Guardian',from:'2025-06-10',until:'2026-05-31',by:null,at:null,sy:SY},
+    {id:'p4',sid:'s4',no:'PGP-TR9N5DKZ-8H3J',type:'permanent',status:'active',  gates:['Tropical Gate'],exit:'Go home alone',from:'2025-06-01',until:'2026-05-31',by:'u3',at:'2025-06-01',sy:SY},
+    {id:'p5',sid:'s6',no:'PGP-HK2M7VBX-3N9P',type:'permanent',status:'for_approval',gates:['Gate 2 (Main Gate)'],exit:'Fetched by Parent or Authorized Guardian',from:'2025-06-15',until:'2026-05-31',by:'u4',at:null,sy:SY},
+    {id:'p6',sid:'s7',no:'PGP-ZR4C9QWT-6L2Y',type:'permanent',status:'suspended',gates:['Gate 1'],exit:'Go home alone',from:'2025-06-01',until:'2026-05-31',by:'u3',at:'2025-06-01',sy:SY},
+    {id:'t1',sid:'s6',no:'TGP-2025-0001',type:'temporary',status:'approved',    gates:['Gate 2 (Main Gate)'],exit:'Fetched by Parent or Authorized Guardian',from:'2026-06-22',until:'2026-06-22',by:'u3',at:'2026-06-21',sy:SY},
+    {id:'t2',sid:'s2',no:'TGP-2025-0002',type:'temporary',status:'pending',     gates:['Gate 1'],exit:'Go home alone',from:'2026-06-25',until:'2026-06-25',by:null,at:null,sy:SY},
+    {id:'t3',sid:'s5',no:'TGP-2025-0003',type:'temporary',status:'for_approval',gates:['Munich Front Gate'],exit:'Fetched by Parent or Authorized Guardian',from:'2026-06-23',until:'2026-06-23',by:'u4',at:null,sy:SY},
+  ],
+  logs:[
+    {id:'l1',pid:'p1',sid:'s1',gate:'Gate 2 (Main Gate)',campus:'lux',at:'2026-06-22T14:45:00',result:'granted',method:'camera'},
+    {id:'l2',pid:'p2',sid:'s2',gate:'Gate 1',campus:'lux',at:'2026-06-22T14:52:00',result:'granted',method:'camera'},
+    {id:'l3',pid:'t1',sid:'s6',gate:'Gate 2 (Main Gate)',campus:'lux',at:'2026-06-22T15:03:00',result:'granted',method:'camera'},
+    {id:'l4',pid:'p6',sid:'s7',gate:'Gate 1',campus:'lux',at:'2026-06-22T15:10:00',result:'denied', method:'manual'},
+    {id:'l5',pid:'p4',sid:'s4',gate:'Tropical Gate',campus:'trop',at:'2026-06-22T14:40:00',result:'granted',method:'camera'},
+    {id:'l6',pid:'p2',sid:'s2',gate:'Gate 1',campus:'lux',at:'2026-06-21T15:00:00',result:'granted',method:'camera'},
+  ],
+  pgpCounter:7, tgpCounter:4,
+};
+
+// ════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════
+const g = id => document.getElementById(id);
+const campus = id => CAMPUSES.find(c=>c.id===id);
+const student = id => DB.students.find(s=>s.id===id);
+const pass = id => DB.passes.find(p=>p.id===id);
+const user = id => DB.users.find(u=>u.id===id);
+const initials = name => { const p=name.split(','); return (p[0]?.[0]||'')+(p[1]?.trim()[0]||'') };
+const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+const fmtDT = d => d ? new Date(d).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+const today = () => '2026-06-22';
+const genPGP = () => { const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r='PGP-'; for(let i=0;i<8;i++)r+=c[Math.floor(Math.random()*c.length)]; r+='-'; for(let i=0;i<4;i++)r+=c[Math.floor(Math.random()*c.length)]; return r; };
+const genTGP = () => `TGP-2026-${String(++DB.tgpCounter).padStart(4,'0')}`;
+const can = roles => roles.includes(DB.currentUser?.role);
+const statusBadge = s => ({active:'b-active',pending:'b-pending',approved:'b-approved',rejected:'b-rejected',suspended:'b-suspended',revoked:'b-revoked',expired:'b-expired',for_approval:'b-forapproval'}[s]||'b-expired');
+
+let S = { page:'login', modal:null, mdata:{}, fPass:'all', fType:'all', fCampus:'all', search:'', searchS:'', tab:0, scanResult:null, scanInput:'', toast:null };
+function set(patch){Object.assign(S,patch);render();}
+function toast(msg,type='ok'){
+  S.toast={msg,type};render();
+  setTimeout(()=>{S.toast=null;render();},3200);
+}
+
+// ════════════════════════════════════════════════════════════════
+// RENDER ENGINE
+// ════════════════════════════════════════════════════════════════
+function render(){
+  const root=g('root');
+  if(S.page==='login'){root.innerHTML=rLogin();bindLogin();return;}
+  root.innerHTML=`
+    ${S.toast?rToast():''}
+    ${S.modal?rModal():''}
+    <div class="app">
+      ${rSidebar()}
+      <div class="main">
+        ${rTopbar()}
+        <div class="content" id="page-content">${rPage()}</div>
+      </div>
+    </div>`;
+  bindAll();
+  if(S.page==='scanner'&&S.scanResult?.pass) setTimeout(()=>renderQR('sr-qr',S.scanResult.pass.no),150);
+  if(S.modal==='viewPass') setTimeout(()=>renderQR('modal-qr',S.mdata.pass?.no),150);
+}
+
+// ════════════════════════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════════════════════════
+function rLogin(){return `
+<div class="login-bg">
+  <div class="login-card">
+    <div class="login-logo">🛡️</div>
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:15px;font-weight:800;color:var(--text)">Southville Gate Pass System</div>
+      <div style="font-size:11px;color:var(--school);font-weight:600;margin-top:2px;letter-spacing:.04em">SY ${SY} · SISC</div>
+    </div>
+    <div class="alert alert-teal mb12">Use <b>@southville.edu.ph</b> for staff · @sgen.edu.ph for students</div>
+    <div class="fg mb12">
+      <label>Email Address</label>
+      <input id="l-email" class="fi" type="email" value="msantos@southville.edu.ph"/>
+    </div>
+    <div class="fg mb12">
+      <label>Password</label>
+      <input id="l-pw" class="fi" type="password" value="Admin@1234"/>
+    </div>
+    <div class="mb12">
+      <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Quick Access — Demo Roles</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        <span class="rq sel" data-e="msantos@southville.edu.ph" data-p="Admin@1234">System Admin</span>
+        <span class="rq" data-e="areyes@southville.edu.ph" data-p="Deputy@1234">Deputy Principal</span>
+        <span class="rq" data-e="jdelacruz@southville.edu.ph" data-p="Discipline@1234">Discipline Head</span>
+        <span class="rq" data-e="lgarcia@southville.edu.ph" data-p="Secretary@1234">Secretary</span>
+        <span class="rq" data-e="btorres@southville.edu.ph" data-p="Affairs@1234">Student Affairs</span>
+      </div>
+    </div>
+    <button onclick="doLogin()" style="width:100%;padding:10px;font-size:14px;font-weight:700;background:var(--school);color:#fff;border:none;border-radius:var(--radius);cursor:pointer;transition:.15s" onmouseover="this.style.background='var(--school-l)'" onmouseout="this.style.background='var(--school)'">Sign In →</button>
+    <div id="lerr" style="color:var(--red);font-size:11.5px;text-align:center;margin-top:8px"></div>
+  </div>
+</div>`;}
+function bindLogin(){
+  g('l-pw').onkeydown=e=>{if(e.key==='Enter')doLogin();};
+  document.querySelectorAll('.rq').forEach(r=>r.onclick=()=>{
+    document.querySelectorAll('.rq').forEach(x=>x.classList.remove('sel'));
+    r.classList.add('sel');
+    g('l-email').value=r.dataset.e;
+    g('l-pw').value=r.dataset.p;
+  });
+}
+function doLogin(){
+  const e=g('l-email').value.trim(), p=g('l-pw').value.trim();
+  const u=DB.users.find(x=>x.email===e&&x.pw===p);
+  if(!u){g('lerr').textContent='Invalid email or password.';return;}
+  DB.currentUser=u;set({page:'dashboard'});
+}
+
+// ════════════════════════════════════════════════════════════════
+// SIDEBAR
+// ════════════════════════════════════════════════════════════════
+function rSidebar(){
+  const r=DB.currentUser.role;
+  const nav=[
+    {sec:'Main',items:[
+      {id:'dashboard',ico:'📊',lbl:'Dashboard'},
+      {id:'scanner', ico:'📷',lbl:'Gate Scanner'},
+      {id:'exitlog', ico:'📋',lbl:'Exit Logs'},
+    ]},
+    {sec:'Gate Passes',items:[
+      {id:'pgp',ico:'🎫',lbl:'Permanent (PGP)'},
+      {id:'tgp',ico:'📄',lbl:'Temporary (TGP)'},
+    ]},
+    {sec:'Registry',items:[
+      {id:'students',ico:'👥',lbl:'Students',roles:['system_admin','deputy_principal','secretary','student_affairs']},
+    ]},
+    {sec:'Admin',items:[
+      {id:'reports',ico:'📈',lbl:'Reports',roles:['system_admin','deputy_principal']},
+      {id:'users',  ico:'⚙️',lbl:'User Management',roles:['system_admin']},
+    ]},
+  ];
+  const pending=DB.passes.filter(p=>['pending','for_approval'].includes(p.status)).length;
+  return `
+  <div class="sidebar">
+    <div class="logo-wrap">
+      <div class="logo-icon">S</div>
+      <div><div class="logo-name">SISC Gate Pass</div><div class="logo-sy">SY ${SY}</div></div>
+    </div>
+    <div class="nav">
+      ${nav.map(g=>{
+        const vis=g.items.filter(i=>!i.roles||i.roles.includes(r));
+        if(!vis.length)return '';
+        return `<div class="nav-sec">${g.sec}</div>${vis.map(i=>`
+          <button class="nav-item ${S.page===i.id?'active':''}" onclick="set({page:'${i.id}'})">
+            <span>${i.ico}</span><span>${i.lbl}</span>
+            ${i.id==='dashboard'&&pending>0?`<span class="nav-badge">${pending}</span>`:''}
+          </button>`).join('')}`;
+      }).join('')}
+    </div>
+    <div class="sidebar-foot">
+      <div class="user-pill">
+        <div class="av">${DB.currentUser.av}</div>
+        <div style="flex:1;min-width:0">
+          <div class="uname">${DB.currentUser.name}</div>
+          <div class="urole">${ROLES[DB.currentUser.role]?.label}</div>
+        </div>
+      </div>
+      <button class="logout" onclick="doLogout()">↩ Sign out</button>
+    </div>
+  </div>`;}
+function doLogout(){DB.currentUser=null;set({page:'login',modal:null});}
+
+// ════════════════════════════════════════════════════════════════
+// TOPBAR
+// ════════════════════════════════════════════════════════════════
+function rTopbar(){
+  const titles={dashboard:'Dashboard',scanner:'Gate Scanner',exitlog:'Exit Logs',pgp:'Permanent Gate Passes',tgp:'Temporary Gate Passes',students:'Student Registry',reports:'Reports',users:'User Management'};
+  const c=campus(DB.currentUser.campus);
+  return `
+  <div class="topbar">
+    <span class="topbar-title">${titles[S.page]||'SISC GPS'}</span>
+    <div class="flex gap8 items-c">
+      <span class="campus-badge">📍 ${c?.name||'All Campuses'}</span>
+      ${S.page==='pgp'&&can(['system_admin','secretary','student_affairs'])?`<button class="btn btn-school btn-sm" onclick="openModal('newPGP')">+ New PGP</button>`:''}
+      ${S.page==='pgp'&&can(['system_admin'])?`<button class="btn btn-ghost btn-sm" onclick="openModal('batchUpload')">⬆ Batch Upload</button>`:''}
+      ${S.page==='tgp'&&can(['system_admin','secretary','student_affairs'])?`<button class="btn btn-school btn-sm" onclick="openModal('newTGP')">+ New TGP</button>`:''}
+      ${S.page==='students'&&can(['system_admin','secretary','student_affairs'])?`<button class="btn btn-school btn-sm" onclick="openModal('newStudent')">+ Add Student</button>`:''}
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// PAGE ROUTER
+// ════════════════════════════════════════════════════════════════
+function rPage(){
+  switch(S.page){
+    case 'dashboard': return pgDashboard();
+    case 'scanner':   return pgScanner();
+    case 'exitlog':   return pgExitLog();
+    case 'pgp':       return pgPGP();
+    case 'tgp':       return pgTGP();
+    case 'students':  return pgStudents();
+    case 'reports':   return pgReports();
+    case 'users':     return pgUsers();
+    default: return '<div class="empty"><div class="empty-ico">🚧</div><div class="empty-txt">Coming soon</div></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════════
+function pgDashboard(){
+  const activePGP=DB.passes.filter(p=>p.type==='permanent'&&p.status==='active').length;
+  const pending=DB.passes.filter(p=>['pending','for_approval'].includes(p.status)).length;
+  const todayX=DB.logs.filter(l=>l.at.startsWith(today())).length;
+  const pendTGP=DB.passes.filter(p=>p.type==='temporary'&&['pending','for_approval'].includes(p.status)).length;
+  const myc=DB.currentUser.campus;
+  const todayLogs=DB.logs.filter(l=>l.at.startsWith(today())&&l.campus===myc).slice().reverse();
+  const pendingPasses=DB.passes.filter(p=>['pending','for_approval'].includes(p.status));
+
+  return `
+  <div class="stats-row">
+    <div class="stat" style="border-left:3px solid var(--teal)">
+      <div class="stat-ico">🎫</div>
+      <div class="stat-val" style="color:var(--teal-d)">${activePGP}</div>
+      <div class="stat-lbl">Active Permanent Passes</div>
+      <div class="stat-sub muted">SY ${SY}</div>
+    </div>
+    <div class="stat" style="border-left:3px solid var(--yellow)">
+      <div class="stat-ico">⏳</div>
+      <div class="stat-val" style="color:var(--yellow)">${pending}</div>
+      <div class="stat-lbl">Pending Approvals</div>
+      <div class="stat-sub" style="color:${pending>0?'var(--yellow)':'var(--text3)'}">${pending>0?'Needs attention':'All clear'}</div>
+    </div>
+    <div class="stat" style="border-left:3px solid var(--green)">
+      <div class="stat-ico">🚶</div>
+      <div class="stat-val" style="color:var(--green)">${todayX}</div>
+      <div class="stat-lbl">Today's Exits</div>
+      <div class="stat-sub muted">${fmtDate(today())}</div>
+    </div>
+    <div class="stat" style="border-left:3px solid var(--orange)">
+      <div class="stat-ico">📄</div>
+      <div class="stat-val" style="color:var(--orange)">${pendTGP}</div>
+      <div class="stat-lbl">Pending Temp Passes</div>
+      <div class="stat-sub" style="color:${pendTGP>0?'var(--orange)':'var(--text3)'}">${pendTGP>0?'Action needed':'Clear'}</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-head">
+        <div><div class="card-title">Today's Exit Activity</div><div class="card-sub">${campus(myc)?.name||'Campus'}</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="set({page:'exitlog'})">View All</button>
+      </div>
+      <div style="max-height:260px;overflow-y:auto">
+        ${todayLogs.length===0?`<div class="empty" style="padding:24px"><div class="empty-ico">🚶</div><div class="empty-txt">No exits today</div></div>`:''}
+        ${todayLogs.map(l=>{
+          const st=student(l.sid);const pa=pass(l.pid);
+          return `<div class="feed-row" style="padding:9px 14px">
+            <div style="width:34px;height:34px;border-radius:50%;background:${l.result==='denied'?'var(--red-s)':'var(--school-s)'};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:${l.result==='denied'?'var(--red)':'var(--school)'};flex-shrink:0">${initials(st?.name||'?')}</div>
+            <div style="flex:1;min-width:0">
+              <div class="bold" style="font-size:12.5px">${st?.name||'Unknown'}</div>
+              <div class="muted" style="font-size:10.5px">${st?.grade} · ${l.gate}</div>
+            </div>
+            <div style="text-align:right">
+              <span class="badge ${pa?.type==='permanent'?'b-perm':'b-temp'}">${pa?.type==='permanent'?'PGP':'TGP'}</span>
+              <div class="muted" style="font-size:10px;margin-top:2px">${fmtDT(l.at)}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div><div class="card-title">Pending Actions</div><div class="card-sub">Passes awaiting review</div></div>
+        ${pending>0?`<span class="badge b-pending">${pending} pending</span>`:''}
+      </div>
+      <div style="max-height:260px;overflow-y:auto">
+        ${pendingPasses.length===0?`<div class="empty" style="padding:24px"><div class="empty-ico">✅</div><div class="empty-txt">All caught up!</div></div>`:''}
+        ${pendingPasses.map(pa=>{
+          const st=student(pa.sid);
+          return `<div class="feed-row" style="padding:9px 14px">
+            <div style="width:34px;height:34px;border-radius:50%;background:var(--school-s);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--school);flex-shrink:0">${initials(st?.name||'?')}</div>
+            <div style="flex:1;min-width:0">
+              <div class="bold" style="font-size:12.5px">${st?.name}</div>
+              <div class="muted" style="font-size:10.5px">${pa.type==='permanent'?'PGP':'TGP'} · ${campus(st?.campus)?.name||'—'} · <span class="badge ${statusBadge(pa.status)}" style="font-size:9px">${pa.status.replace('_',' ')}</span></div>
+            </div>
+            <div class="flex gap8">
+              ${can(['system_admin','deputy_principal','discipline_head'])?`<button class="btn btn-teal btn-xs" onclick="quickApprove('${pa.id}')">✓ Approve</button>`:''}
+              <button class="btn btn-ghost btn-xs" onclick="openModal('viewPass',{passId:'${pa.id}'})">View</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Campus Summary</div></div>
+      <div style="padding:14px 16px">
+        ${CAMPUSES.map(c=>{
+          const cnt=DB.passes.filter(p=>p.status==='active'&&p.type==='permanent'&&student(p.sid)?.campus===c.id).length;
+          const tot=Math.max(DB.passes.filter(p=>p.status==='active'&&p.type==='permanent').length,1);
+          return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:11px">
+            <div style="flex:1"><div class="bold" style="font-size:12px">${c.name}</div><div class="muted" style="font-size:10px">${c.levels}</div></div>
+            <div class="bar-bg" style="flex:0 0 80px"><div class="bar-fill" style="width:${Math.round(cnt/tot*100)}%;background:var(--teal)"></div></div>
+            <div class="bold teal" style="width:22px;text-align:right;font-size:13px">${cnt}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pass Status Overview</div></div>
+      <div style="padding:14px 16px">
+        ${['active','pending','for_approval','suspended','revoked'].map(s=>{
+          const cnt=DB.passes.filter(p=>p.type==='permanent'&&p.status===s).length;
+          const pct=Math.round(cnt/Math.max(DB.passes.filter(p=>p.type==='permanent').length,1)*100);
+          const cols={active:'var(--green)',pending:'var(--yellow)',for_approval:'var(--blue)',suspended:'var(--orange)',revoked:'var(--red)'};
+          return `<div class="rbar-row">
+            <div class="rbar-lbl">${s.replace('_',' ')}</div>
+            <div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:${pct}%;background:${cols[s]}"></div></div>
+            <div class="rbar-val" style="color:${cols[s]}">${cnt}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// GATE SCANNER
+// ════════════════════════════════════════════════════════════════
+function pgScanner(){
+  const myc=DB.currentUser.campus;
+  const todayFeed=DB.logs.filter(l=>l.at.startsWith(today())&&l.campus===myc).slice().reverse();
+  const sr=S.scanResult;
+  return `
+  <div class="grid2">
+    <div>
+      <div class="card mb12">
+        <div class="card-head"><div class="card-title">📷 QR Code Scanner</div></div>
+        <div class="tab-bar" style="padding:0 16px">
+          <div class="tab ${S.tab===0?'on':''}" onclick="set({tab:0,scanResult:null})">Manual Input</div>
+          <div class="tab ${S.tab===1?'on':''}" onclick="set({tab:1,scanResult:null})">Camera Scan</div>
+        </div>
+        ${S.tab===0?`
+        <div style="padding:16px">
+          <div class="scan-area">
+            <div class="scan-ring">🎫</div>
+            <div class="bold mb8">Enter Pass Number</div>
+            <div class="muted mb12" style="font-size:12px">Type the PGP or TGP number to verify</div>
+            <div class="flex gap8" style="max-width:340px;margin:0 auto">
+              <input id="scan-in" class="fi" style="flex:1;font-family:monospace;text-align:center;font-size:12px;text-transform:uppercase" placeholder="PGP-XXXXXXXX-XXXX" value="${S.scanInput}" oninput="S.scanInput=this.value" onkeydown="if(event.key==='Enter')doScan()"/>
+              <button class="btn btn-teal" onclick="doScan()">Verify</button>
+            </div>
+            <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+              ${DB.passes.filter(p=>['active','approved'].includes(p.status)).slice(0,6).map(p=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;cursor:pointer;font-family:monospace" onclick="g('scan-in').value='${p.no}';S.scanInput='${p.no}';">${p.no}</span>`).join('')}
+            </div>
+          </div>
+        </div>`:
+        `<div style="padding:16px">
+          <div style="background:#111;border-radius:var(--radius);overflow:hidden;position:relative;min-height:200px;display:flex;align-items:center;justify-content:center">
+            <video id="cam-video" style="width:100%;border-radius:var(--radius);display:none;max-height:220px;object-fit:cover"></video>
+            <canvas id="cam-canvas" style="display:none"></canvas>
+            <div id="cam-placeholder" style="text-align:center;color:#fff;padding:30px">
+              <div style="font-size:38px;margin-bottom:10px;opacity:.7">📷</div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:6px">Camera Scanner</div>
+              <div style="font-size:11px;color:#aaa;margin-bottom:14px">Handles glare and screen reflections</div>
+              <button class="btn btn-teal" onclick="startCamera()">Start Camera</button>
+            </div>
+          </div>
+          <div id="cam-status" class="muted" style="font-size:11px;text-align:center;margin-top:8px"></div>
+        </div>`}
+        ${sr?`<div style="padding:0 16px 16px">
+          <div class="${sr.ok?'scan-ok':'scan-fail'}">
+            <div class="flex gap8 items-c mb8">
+              <span style="font-size:28px">${sr.ok?'✅':'❌'}</span>
+              <div>
+                <div class="bold" style="font-size:14px;color:${sr.ok?'var(--green)':'var(--red)'}">${sr.ok?'ACCESS GRANTED':'ACCESS DENIED'}</div>
+                <div class="muted" style="font-size:11.5px">${sr.reason}</div>
+              </div>
+            </div>
+            ${sr.st?`<div style="display:flex;gap:12px;align-items:center;padding:10px;background:rgba(0,0,0,.04);border-radius:8px;margin-bottom:10px">
+              <span style="font-size:34px">${sr.st.photo}</span>
+              <div style="flex:1">
+                <div class="bold" style="font-size:14px">${sr.st.name}</div>
+                <div class="muted" style="font-size:11px">${sr.st.grade} - ${sr.st.section} · ${campus(sr.st.campus)?.name}</div>
+                <div class="muted" style="font-size:10.5px">ID: ${sr.st.sid}</div>
+                <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">
+                  ${(sr.pa.gates||[]).map(g=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:2px 7px;font-size:10px;font-weight:600">${g}</span>`).join('')}
+                </div>
+                <div style="font-size:11px;color:var(--teal-d);font-weight:600;margin-top:3px">🚌 ${sr.pa.exit}</div>
+              </div>
+              <div>
+                <span class="badge b-perm" style="font-size:10px">${sr.pa.type==='permanent'?'PGP':'TGP'}</span>
+                <div id="sr-qr" style="background:#fff;border-radius:8px;padding:6px;margin-top:6px;width:72px;height:72px"></div>
+              </div>
+            </div>
+            <div class="flex gap8">
+              ${sr.ok?`<button class="btn btn-teal btn-sm" style="flex:1;justify-content:center" onclick="logExit('${sr.pa.id}','${sr.st.id}')">✓ Log Exit</button>`:''}
+              <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="set({scanResult:null,scanInput:''})">Clear</button>
+            </div>`:''}
+          </div>
+        </div>`:''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Live Exit Feed</div>
+          <div class="card-sub">${campus(myc)?.name||'Campus'} — Today</div>
+        </div>
+        <div class="flex gap8 items-c">
+          <div style="width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2s infinite"></div>
+          <span style="font-size:11px;color:var(--green);font-weight:600">Live</span>
+        </div>
+      </div>
+      <div id="exit-feed" style="max-height:calc(100vh - 240px);overflow-y:auto">
+        ${todayFeed.length===0?`<div class="empty" style="padding:24px"><div class="empty-ico">🚶</div><div class="empty-txt">No exits today yet</div></div>`:''}
+        ${todayFeed.map(l=>{
+          const st=student(l.sid);const pa=pass(l.pid);
+          return `<div class="feed-row" style="padding:9px 14px;background:${l.result==='denied'?'#fff5f5':'transparent'}">
+            <div style="width:36px;height:36px;border-radius:50%;background:${l.result==='denied'?'var(--red-s)':'var(--school-s)'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:${l.result==='denied'?'var(--red)':'var(--school)'};flex-shrink:0">${initials(st?.name||'?')}</div>
+            <div style="flex:1;min-width:0">
+              <div class="bold" style="font-size:12.5px">${st?.name}</div>
+              <div class="muted" style="font-size:10.5px">${st?.grade} · ${l.gate}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              ${l.result==='denied'?`<span class="badge b-rejected">Denied</span>`:`<span class="badge ${pa?.type==='permanent'?'b-perm':'b-temp'}">${pa?.type==='permanent'?'PGP':'TGP'}</span>`}
+              <div class="muted" style="font-size:10px;margin-top:2px">${fmtDT(l.at)}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="padding:12px 14px;border-top:1px solid var(--border)">
+        <div class="alert alert-teal" style="margin-bottom:0;font-size:11.5px">
+          💡 Parent email notification is sent automatically on each exit log.
+        </div>
+      </div>
+    </div>
+  </div>`;}
+
+function doScan(){
+  const input=S.scanInput.trim().toUpperCase();
+  if(!input){toast('Enter a pass number','warn');return;}
+  const pa=DB.passes.find(p=>p.no===input||p.no===input);
+  if(!pa){set({scanResult:{ok:false,reason:'Pass not found in the system.',st:null,pa:{id:null,no:input,gates:[],exit:'',type:'',status:''}}});return;}
+  const st=student(pa.sid);
+  let denied=false,reason='';
+  if(pa.status==='revoked'){denied=true;reason='This pass has been permanently revoked.';}
+  else if(pa.status==='suspended'){denied=true;reason='This pass is currently suspended.';}
+  else if(pa.status==='rejected'){denied=true;reason='This pass application was rejected.';}
+  else if(pa.type==='permanent'&&pa.status!=='active'){denied=true;reason=`Pass status is '${pa.status}' — must be active.`;}
+  else if(pa.type==='temporary'){
+    if(pa.status!=='approved'){denied=true;reason='Temporary pass is not yet approved.';}
+    else if(pa.from!==today()){denied=true;reason=`Temporary pass only valid on ${fmtDate(pa.from)}.`;}
+  }
+  set({scanResult:{ok:!denied,reason:denied?reason:'Valid pass — all checks passed.',st,pa}});
+}
+
+function logExit(passId,studentId){
+  const pa=pass(passId),st=student(studentId);
+  if(!pa||!st)return;
+  const gate=(pa.gates||['Gate 1'])[0];
+  const myc=DB.currentUser.campus;
+  DB.logs.push({id:'l'+Date.now(),pid:passId,sid:studentId,gate,campus:myc,at:new Date().toISOString(),result:'granted',method:'camera'});
+  toast(`✅ Exit logged for ${st.name}. Email sent to ${st.pEmail}`,'ok');
+  set({scanResult:null,scanInput:''});
+}
+
+let camStream=null,scanInt=null;
+function startCamera(){
+  const ph=g('cam-placeholder');const vid=g('cam-video');const stat=g('cam-status');
+  if(!navigator.mediaDevices?.getUserMedia){toast('Camera not available in this browser','warn');return;}
+  if(ph)ph.style.display='none';
+  if(stat)stat.textContent='📡 Scanning… hold QR code steady';
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}}})
+    .then(stream=>{
+      camStream=stream;vid.srcObject=stream;vid.style.display='block';vid.play();
+      scanInt=setInterval(()=>{
+        const c=g('cam-canvas');if(!c||!vid.videoWidth)return;
+        c.width=vid.videoWidth;c.height=vid.videoHeight;
+        const ctx=c.getContext('2d');ctx.drawImage(vid,0,0);
+        const id=ctx.getImageData(0,0,c.width,c.height);
+        if(window.jsQR){
+          const code=jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
+          if(code){stopCamera();S.scanInput=code.data;set({tab:0});setTimeout(doScan,100);}
+        }
+      },400);
+    })
+    .catch(()=>{if(ph)ph.style.display='block';toast('Camera access denied. Use manual input.','warn');});
+}
+function stopCamera(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}clearInterval(scanInt);}
+
+// ════════════════════════════════════════════════════════════════
+// EXIT LOG
+// ════════════════════════════════════════════════════════════════
+function pgExitLog(){
+  const logs=DB.logs.slice().reverse();
+  return `
+  <div class="card">
+    <div class="card-head">
+      <div><div class="card-title">Exit Log <span style="font-size:10.5px;color:var(--text3);font-weight:400">(append-only · immutable)</span></div></div>
+      <span class="muted" style="font-size:11.5px">${logs.length} entries</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Student</th><th>Grade</th><th>Gate</th><th>Pass</th><th>Result</th><th>Method</th><th>Timestamp</th></tr></thead>
+        <tbody>
+        ${logs.map((l,i)=>{
+          const st=student(l.sid);const pa=pass(l.pid);
+          return `<tr>
+            <td class="muted" style="font-size:10.5px">${DB.logs.length-i}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:20px">${st?.photo||'👤'}</span>
+                <div><div class="bold" style="font-size:12.5px">${st?.name}</div><div class="muted" style="font-size:10px">${st?.sid}</div></div>
+              </div>
+            </td>
+            <td class="muted" style="font-size:12px">${st?.grade}</td>
+            <td style="font-size:12px">${l.gate}</td>
+            <td><span class="badge ${pa?.type==='permanent'?'b-perm':'b-temp'}">${pa?.type==='permanent'?'PGP':'TGP'}</span></td>
+            <td><span class="badge ${l.result==='granted'?'b-active':'b-rejected'}">${l.result}</span></td>
+            <td class="muted" style="font-size:11px">${l.method==='camera'?'📷 Camera':'⌨️ Manual'}</td>
+            <td class="muted" style="font-size:11px">${fmtDT(l.at)}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// PERMANENT GATE PASSES
+// ════════════════════════════════════════════════════════════════
+function pgPGP(){
+  let passes=DB.passes.filter(p=>p.type==='permanent');
+  if(S.fPass!=='all') passes=passes.filter(p=>p.status===S.fPass);
+  if(S.fCampus!=='all') passes=passes.filter(p=>student(p.sid)?.campus===S.fCampus);
+  if(S.search) passes=passes.filter(p=>{const st=student(p.sid);return p.no.toLowerCase().includes(S.search.toLowerCase())||(st&&st.name.toLowerCase().includes(S.search.toLowerCase()));});
+
+  return `
+  <div class="pills">
+    ${['all','active','pending','for_approval','suspended','revoked'].map(f=>`<span class="pill ${S.fPass===f?'on':''}" onclick="set({fPass:'${f}'})">${f.replace('_',' ')} ${f==='all'?'('+DB.passes.filter(p=>p.type==='permanent').length+')':''}</span>`).join('')}
+    <div style="margin-left:auto;display:flex;gap:5px">
+      ${CAMPUSES.map(c=>`<span class="pill ${S.fCampus===c.id?'on':''}" onclick="set({fCampus:'${c.id}'})" style="font-size:10.5px">${c.name.split(' ')[0]}</span>`).join('')}
+      <span class="pill ${S.fCampus==='all'?'on':''}" onclick="set({fCampus:'all'})" style="font-size:10.5px">All</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="search-wrap" style="width:260px">
+        <span class="si">🔍</span>
+        <input class="fi" style="background:#fff" placeholder="Search name, ID, PGP no…" value="${S.search}" oninput="set({search:this.value})"/>
+      </div>
+      <span class="muted" style="font-size:11.5px">${passes.length} records</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>PGP No.</th><th>Student</th><th>Grade/Section</th><th>Campus</th><th>Gates</th><th>Status</th><th>Expiry</th><th>Actions</th></tr></thead>
+        <tbody>
+        ${passes.length===0?`<tr><td colspan="8"><div class="empty"><div class="empty-ico">🎫</div><div class="empty-txt">No passes found</div></div></td></tr>`:''}
+        ${passes.map(pa=>{
+          const st=student(pa.sid);const c=campus(st?.campus);
+          return `<tr>
+            <td class="mono bold" style="font-size:11px">${pa.no}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:20px">${st?.photo||'👤'}</span>
+                <div><div class="bold" style="font-size:12.5px">${st?.name}</div><div class="muted" style="font-size:10px">${st?.sid}</div></div>
+              </div>
+            </td>
+            <td class="muted" style="font-size:12px">${st?.grade} - ${st?.section}</td>
+            <td class="muted" style="font-size:11px">${c?.name||'—'}</td>
+            <td>${(pa.gates||[]).map(g=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:600;margin:1px;display:inline-block">${g}</span>`).join('')}</td>
+            <td><span class="badge ${statusBadge(pa.status)}">${pa.status.replace('_',' ')}</span></td>
+            <td class="muted" style="font-size:11.5px">${fmtDate(pa.until)}</td>
+            <td>
+              <div class="tbl-actions">
+                <button class="btn btn-ghost btn-xs" onclick="openModal('viewPass',{passId:'${pa.id}'})">View ID</button>
+                ${can(['system_admin','discipline_head','deputy_principal'])&&pa.status==='pending'?`<button class="btn btn-teal btn-xs" onclick="quickApprove('${pa.id}')">✓</button>`:''}
+                ${can(['system_admin','discipline_head'])&&pa.status==='active'?`<button class="btn btn-danger btn-xs" onclick="quickSuspend('${pa.id}')">Suspend</button>`:''}
+                ${can(['system_admin','discipline_head'])&&pa.status==='suspended'?`<button class="btn btn-success btn-xs" onclick="quickReactivate('${pa.id}')">Reactivate</button>`:''}
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// TEMPORARY GATE PASSES
+// ════════════════════════════════════════════════════════════════
+function pgTGP(){
+  const passes=DB.passes.filter(p=>p.type==='temporary');
+  return `
+  <div class="alert alert-warn mb12">
+    📄 Temporary Gate Passes are single-day only. Parent submits request → Secretary processes → Discipline Head approves → Valid on that date only.
+    <br><span style="margin-top:4px;display:inline-block">Public parent request link: <span style="font-family:monospace;background:rgba(0,0,0,.06);padding:1px 6px;border-radius:4px">/tgp/request</span></span>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Temporary Pass Requests</div>
+      <span class="muted" style="font-size:11.5px">${passes.length} requests</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>TGP No.</th><th>Student</th><th>Valid Date</th><th>Gate</th><th>Exit Mode</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+        <tbody>
+        ${passes.length===0?`<tr><td colspan="8"><div class="empty"><div class="empty-ico">📄</div><div class="empty-txt">No temp passes</div></div></td></tr>`:''}
+        ${passes.map(pa=>{
+          const st=student(pa.sid);const isToday=pa.from===today();
+          return `<tr>
+            <td class="mono bold" style="font-size:11px">${pa.no}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:20px">${st?.photo||'👤'}</span>
+                <div><div class="bold" style="font-size:12.5px">${st?.name}</div><div class="muted" style="font-size:10px">${st?.grade}</div></div>
+              </div>
+            </td>
+            <td class="bold" style="color:${isToday?'var(--teal-d)':'var(--text)'};font-size:12px">${fmtDate(pa.from)}${isToday?` <span style="background:var(--teal-s);color:var(--teal-d);border-radius:4px;padding:1px 5px;font-size:9.5px;font-weight:700">TODAY</span>`:''}</td>
+            <td style="font-size:11px">${(pa.gates||[]).join(', ')}</td>
+            <td class="muted" style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${pa.exit}</td>
+            <td><span class="badge ${statusBadge(pa.status)}">${pa.status.replace('_',' ')}</span></td>
+            <td class="muted" style="font-size:11px">—</td>
+            <td>
+              <div class="tbl-actions">
+                ${can(['system_admin','discipline_head','deputy_principal'])&&pa.status==='pending'?`<button class="btn btn-ghost btn-xs" onclick="processTGP('${pa.id}')">Process</button>`:''}
+                ${can(['system_admin','discipline_head','deputy_principal'])&&pa.status==='for_approval'?`<button class="btn btn-teal btn-xs" onclick="quickApprove('${pa.id}')">✓ Approve</button>`:''}
+                ${pa.status==='approved'?`<span style="color:var(--green);font-size:11px;font-weight:600">✓ Ready</span>`:''}
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// STUDENTS
+// ════════════════════════════════════════════════════════════════
+function pgStudents(){
+  let students=DB.students;
+  if(S.searchS) students=students.filter(s=>s.name.toLowerCase().includes(S.searchS.toLowerCase())||s.sid.includes(S.searchS)||s.grade.toLowerCase().includes(S.searchS.toLowerCase()));
+  return `
+  <div class="card">
+    <div class="card-head">
+      <div class="search-wrap" style="width:260px">
+        <span class="si">🔍</span>
+        <input class="fi" style="background:#fff" placeholder="Search name, ID, grade…" value="${S.searchS}" oninput="set({searchS:this.value})"/>
+      </div>
+      <div class="flex gap8">
+        <span class="muted" style="font-size:11.5px">${students.length} students</span>
+        <button class="btn btn-ghost btn-xs" onclick="openModal('batchUpload')">⬆ Batch CSV</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th></th><th>Name</th><th>Student ID</th><th>Grade/Section</th><th>Campus</th><th>Parent Email</th><th>Active Pass</th><th>Actions</th></tr></thead>
+        <tbody>
+        ${students.map(st=>{
+          const ap=DB.passes.find(p=>p.sid===st.id&&p.type==='permanent'&&p.status==='active');
+          const c=campus(st.campus);
+          return `<tr>
+            <td style="font-size:26px;padding:8px 12px">${st.photo}</td>
+            <td><div class="bold" style="font-size:12.5px">${st.name}</div><div class="muted" style="font-size:10px">${st.pEmail}</div></td>
+            <td class="mono" style="font-size:12px">${st.sid}</td>
+            <td class="muted" style="font-size:12px">${st.grade} - ${st.section}</td>
+            <td class="muted" style="font-size:11px">${c?.name||'—'}</td>
+            <td class="muted" style="font-size:11px">${st.pEmail}</td>
+            <td>${ap?`<span class="badge b-active">PGP Active</span>`:'<span class="muted" style="font-size:11px">—</span>'}</td>
+            <td>
+              <div class="tbl-actions">
+                ${ap?`<button class="btn btn-ghost btn-xs" onclick="openModal('viewPass',{passId:'${ap.id}'})">View Pass</button>`:`<button class="btn btn-school btn-xs" onclick="openModal('newPGP',{sid:'${st.id}'})">Apply Pass</button>`}
+              </div>
+            </td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// REPORTS
+// ════════════════════════════════════════════════════════════════
+function pgReports(){
+  const totalPGP=DB.passes.filter(p=>p.type==='permanent').length;
+  return `
+  <div class="grid2 mb16">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pass Status Summary</div></div>
+      <div style="padding:14px 16px">
+        ${['active','pending','for_approval','suspended','revoked'].map(s=>{
+          const cnt=DB.passes.filter(p=>p.type==='permanent'&&p.status===s).length;
+          const pct=Math.round(cnt/Math.max(totalPGP,1)*100);
+          const cols={active:'var(--green)',pending:'var(--yellow)',for_approval:'var(--blue)',suspended:'var(--orange)',revoked:'var(--red)'};
+          return `<div class="rbar-row">
+            <div class="rbar-lbl">${s.replace('_',' ')}</div>
+            <div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:${pct}%;background:${cols[s]}"></div></div>
+            <div class="rbar-val" style="color:${cols[s]}">${cnt}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Campus Active Passes</div></div>
+      <div style="padding:14px 16px">
+        ${CAMPUSES.map(c=>{
+          const cnt=DB.passes.filter(p=>p.type==='permanent'&&p.status==='active'&&student(p.sid)?.campus===c.id).length;
+          return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:11px">
+            <div style="flex:1"><div class="bold" style="font-size:12px">${c.name}</div><div class="muted" style="font-size:10px">${c.levels}</div></div>
+            <div class="bold teal" style="font-size:16px;font-weight:800">${cnt}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Exit Activity</div><div class="card-sub">All logged exits</div></div>
+      <div style="padding:14px 16px">
+        ${[
+          {lbl:'Granted exits',cnt:DB.logs.filter(l=>l.result==='granted').length,col:'var(--green)'},
+          {lbl:'Denied attempts',cnt:DB.logs.filter(l=>l.result==='denied').length,col:'var(--red)'},
+          {lbl:'Camera scans',cnt:DB.logs.filter(l=>l.method==='camera').length,col:'var(--teal-d)'},
+          {lbl:'Manual input',cnt:DB.logs.filter(l=>l.method==='manual').length,col:'var(--text2)'},
+        ].map(r=>`<div class="rbar-row">
+          <div class="rbar-lbl">${r.lbl}</div>
+          <div class="bar-bg" style="flex:1"><div class="bar-fill" style="width:${Math.round(r.cnt/Math.max(DB.logs.length,1)*100)}%;background:${r.col}"></div></div>
+          <div class="rbar-val" style="color:${r.col}">${r.cnt}</div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Temporary Pass Summary</div></div>
+      <div style="padding:14px 16px">
+        ${['pending','for_approval','approved','rejected'].map(s=>{
+          const cnt=DB.passes.filter(p=>p.type==='temporary'&&p.status===s).length;
+          const cols={pending:'var(--yellow)',for_approval:'var(--blue)',approved:'var(--green)',rejected:'var(--red)'};
+          return `<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">
+            <div style="font-size:13px">${s.replace('_',' ')}</div>
+            <div class="bold" style="color:${cols[s]};font-size:15px">${cnt}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Recent Exit Log</div>
+      <button class="btn btn-ghost btn-sm" onclick="set({page:'exitlog'})">View All →</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>Grade</th><th>Gate</th><th>Campus</th><th>Pass</th><th>Result</th><th>Time</th></tr></thead>
+        <tbody>
+        ${DB.logs.slice().reverse().slice(0,8).map(l=>{
+          const st=student(l.sid);const pa=pass(l.pid);
+          return `<tr>
+            <td>
+              <div style="display:flex;gap:7px;align-items:center">
+                <span style="font-size:18px">${st?.photo||'👤'}</span>
+                <div class="bold" style="font-size:12.5px">${st?.name}</div>
+              </div>
+            </td>
+            <td class="muted">${st?.grade}</td>
+            <td style="font-size:12px">${l.gate}</td>
+            <td class="muted" style="font-size:11px">${campus(l.campus)?.name||'—'}</td>
+            <td><span class="badge ${pa?.type==='permanent'?'b-perm':'b-temp'}">${pa?.type==='permanent'?'PGP':'TGP'}</span></td>
+            <td><span class="badge ${l.result==='granted'?'b-active':'b-rejected'}">${l.result}</span></td>
+            <td class="muted" style="font-size:11px">${fmtDT(l.at)}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// USERS
+// ════════════════════════════════════════════════════════════════
+function pgUsers(){
+  return `
+  <div class="alert alert-info mb12">🔒 Only System Admins can manage user accounts. Email domain: <b>@southville.edu.ph</b> for all staff.</div>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">System Users</div>
+      <button class="btn btn-school btn-sm" onclick="openModal('newUser')">+ Add User</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Campus</th><th>Actions</th></tr></thead>
+        <tbody>
+        ${DB.users.map(u=>`<tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:9px">
+              <div class="av" style="width:30px;height:30px;font-size:11px">${u.av}</div>
+              <span class="bold" style="font-size:12.5px">${u.name}</span>
+            </div>
+          </td>
+          <td class="muted" style="font-size:12px">${u.email}</td>
+          <td><span style="font-size:12px;font-weight:600;color:${ROLES[u.role]?.color||'var(--text)'}">${ROLES[u.role]?.label}</span></td>
+          <td class="muted" style="font-size:11px">${campus(u.campus)?.name||'All'}</td>
+          <td>
+            ${u.id!==DB.currentUser.id?`<button class="btn btn-danger btn-xs" onclick="removeUser('${u.id}')">Remove</button>`:`<span class="muted" style="font-size:11px">(You)</span>`}
+          </td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;}
+function removeUser(id){if(confirm('Remove this user?')){DB.users=DB.users.filter(u=>u.id!==id);toast('User removed');render();}}
+
+// ════════════════════════════════════════════════════════════════
+// MODALS
+// ════════════════════════════════════════════════════════════════
+function openModal(type,data={}){set({modal:type,mdata:data});}
+function closeModal(){stopCamera();set({modal:null,mdata:{}});}
+
+function rModal(){
+  const m=S.modal;
+  if(m==='viewPass')   return rViewPassModal();
+  if(m==='newPGP')     return rNewPGPModal();
+  if(m==='newTGP')     return rNewTGPModal();
+  if(m==='newStudent') return rNewStudentModal();
+  if(m==='newUser')    return rNewUserModal();
+  if(m==='batchUpload')return rBatchModal();
+  return '';
+}
+
+function rViewPassModal(){
+  const pa=pass(S.mdata.passId);if(!pa)return '';
+  const st=student(pa.sid);
+  const logs=DB.logs.filter(l=>l.pid===pa.id).slice().reverse().slice(0,5);
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal modal-lg">
+      <div class="modal-head">
+        <div class="modal-title">Virtual Gate Pass</div>
+        <div class="flex gap8">
+          <button class="btn btn-school btn-sm" onclick="window.print()">🖨 Print</button>
+          <button class="close-btn" onclick="closeModal()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" style="display:flex;gap:20px">
+        <div style="flex-shrink:0">
+          ${rPassCard(pa,st,'modal-qr')}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Pass Details</div>
+          ${[
+            ['PGP Number',`<span class="mono bold" style="color:var(--school)">${pa.no}</span>`],
+            ['Type',`<span class="badge b-perm">${pa.type}</span>`],
+            ['Status',`<span class="badge ${statusBadge(pa.status)}">${pa.status.replace('_',' ')}</span>`],
+            ['Valid From',fmtDate(pa.from)],
+            ['Valid Until',fmtDate(pa.until)],
+            ['Exit Mode',pa.exit],
+            ['Approved By',pa.by?user(pa.by)?.name:'Pending'],
+          ].map(([l,v])=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+            <span class="muted">${l}</span><span class="bold">${v}</span>
+          </div>`).join('')}
+          <div style="margin-top:12px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Allowed Gates</div>
+          <div>${(pa.gates||[]).map(g=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600;margin:2px;display:inline-block">${g}</span>`).join('')}</div>
+          <div style="margin-top:12px;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Recent Exits (${logs.length})</div>
+          ${logs.length===0?`<div class="muted" style="font-size:12px">No exits recorded yet</div>`:''}
+          ${logs.map(l=>`<div style="display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span class="badge ${l.result==='granted'?'b-active':'b-rejected'}">${l.result}</span>
+            <span class="muted">${l.gate}</span>
+            <span class="muted" style="margin-left:auto;font-size:10.5px">${fmtDT(l.at)}</span>
+          </div>`).join('')}
+          <div class="alert alert-teal" style="margin-top:12px;font-size:11.5px">
+            📱 QR code uses high error correction (Level H) to scan even through screen glare or reflections on virtual IDs.
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        ${can(['system_admin','discipline_head','deputy_principal'])&&pa.status==='pending'?`<button class="btn btn-teal" onclick="quickApprove('${pa.id}');closeModal()">✓ Approve Pass</button>`:''}
+        ${can(['system_admin','discipline_head'])&&pa.status==='active'?`<button class="btn btn-danger" onclick="quickSuspend('${pa.id}');closeModal()">Suspend</button>`:''}
+        <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>`;}
+
+function rPassCard(pa,st,qrId){return `
+  <div class="pass-card">
+    <div class="pass-hdr">
+      <div class="pass-school">Southville International School and Colleges</div>
+      <div class="pass-title">${(pa.type==='permanent'?'PERMANENT':'TEMPORARY')} GATE PASS</div>
+      <div class="pass-type-lbl">Authorized Exit Document · SY ${pa.sy||SY}</div>
+    </div>
+    <div class="pass-body">
+      <div class="pass-photo">${st?.photo||'👤'}</div>
+      <div class="pass-name">${st?.name||'Unknown'}</div>
+      <div class="pass-grade">${st?.grade||'—'} - ${st?.section||'—'} · SY ${SY}</div>
+      <div class="pass-hr"></div>
+      <div class="pass-fields">
+        <div class="pf"><div class="pf-lbl">Student ID</div><div class="pf-val">${st?.sid||'—'}</div></div>
+        <div class="pf"><div class="pf-lbl">PGP No.</div><div class="pf-val mono">${pa.no}</div></div>
+        <div class="pf"><div class="pf-lbl">Guardian</div><div class="pf-val">${st?.parent||'—'}</div></div>
+        <div class="pf"><div class="pf-lbl">Status</div><div class="pf-val ok">✓ ${(pa.status||'').toUpperCase()}</div></div>
+      </div>
+      <div class="pass-exit">🚌 ${pa.exit||'—'}</div>
+      <div class="pass-qr"><div id="${qrId}" style="width:94px;height:94px"></div></div>
+      <div class="pass-scan-lbl">Scan to verify at gate</div>
+    </div>
+    <div class="pass-foot">Property of the school · Non-transferable · SY ${SY}</div>
+  </div>`;}
+
+function rNewPGPModal(){
+  const preSid=S.mdata.sid||'';
+  const eligible=DB.students.filter(s=>!DB.passes.find(p=>p.sid===s.id&&p.type==='permanent'&&p.status==='active'));
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal modal-lg">
+      <div class="modal-head"><div class="modal-title">🎫 New Permanent Gate Pass Application</div><button class="close-btn" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-info mb12">System generates the PGP number and QR code automatically upon approval.</div>
+        <div class="fgrid">
+          <div class="fg full">
+            <label>Student *</label>
+            <select id="pgp-sid" class="fi">
+              <option value="">Select student…</option>
+              ${DB.students.map(s=>`<option value="${s.id}" ${s.id===preSid?'selected':''}>${s.name} — ${s.sid} (${s.grade})</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Allowed Exit Gates * (select all applicable)</label>
+            <div style="border:1px solid var(--border2);border-radius:var(--radius-sm);padding:10px;background:#fafafa">
+              ${CAMPUSES.flatMap(c=>c.gates.map(g=>`
+                <div class="chk-row">
+                  <input type="checkbox" id="g-${g.replace(/\s/g,'-')}" value="${g}" name="pgp-gate"/>
+                  <label for="g-${g.replace(/\s/g,'-')}" style="font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer">${g} <span class="muted" style="font-size:11px">(${c.name})</span></label>
+                </div>`)).join('')}
+            </div>
+          </div>
+          <div class="fg full">
+            <label>Exit / Dismissal Arrangement *</label>
+            <select id="pgp-exit" class="fi">
+              <option value="Fetched by Parent or Authorized Guardian">🚌 Fetched by Parent or Authorized Guardian</option>
+              <option value="Go home alone">🚶 Go home alone (with parent consent)</option>
+              <option value="Service / School Bus">🚍 Service / School Bus</option>
+              <option value="Carpool with authorized adult">🚗 Carpool with authorized adult</option>
+            </select>
+          </div>
+          <div class="fg"><label>Valid From</label><input type="date" id="pgp-from" class="fi" value="2025-06-01"/></div>
+          <div class="fg"><label>Valid Until</label><input type="date" id="pgp-until" class="fi" value="2026-05-31"/></div>
+          <div class="fg full"><label>Remarks</label><textarea id="pgp-remarks" class="fi" placeholder="Optional notes…"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-school" onclick="submitPGP()">Submit Application</button>
+      </div>
+    </div>
+  </div>`;}
+
+function rNewTGPModal(){
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">📄 New Temporary Gate Pass Request</div><button class="close-btn" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-warn mb12">Temporary passes are valid for ONE specific date only.</div>
+        <div class="fgrid">
+          <div class="fg full">
+            <label>Student *</label>
+            <select id="tgp-sid" class="fi">
+              <option value="">Select student…</option>
+              ${DB.students.map(s=>`<option value="${s.id}">${s.name} — ${s.grade}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg"><label>Date Valid *</label><input type="date" id="tgp-date" class="fi" value="${today()}"/></div>
+          <div class="fg">
+            <label>Gate</label>
+            <select id="tgp-gate" class="fi">
+              ${CAMPUSES.flatMap(c=>c.gates.map(g=>`<option value="${g}">${g} (${c.name})</option>`)).join('')}
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Exit Mode</label>
+            <select id="tgp-exit" class="fi">
+              <option value="Fetched by Parent or Authorized Guardian">Fetched by Parent/Guardian</option>
+              <option value="Go home alone">Go home alone</option>
+              <option value="Service / School Bus">Service / School Bus</option>
+            </select>
+          </div>
+          <div class="fg full"><label>Reason / Remarks *</label><textarea id="tgp-remarks" class="fi" placeholder="e.g. Medical appointment, early dismissal…"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-school" onclick="submitTGP()">Submit Request</button>
+      </div>
+    </div>
+  </div>`;}
+
+function rNewStudentModal(){
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">👥 Add Student</div><button class="close-btn" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div class="fgrid">
+          <div class="fg full"><label>Full Name (Last, First) *</label><input id="ns-name" class="fi" placeholder="Dela Cruz, Juan"/></div>
+          <div class="fg"><label>Student ID *</label><input id="ns-sid" class="fi" placeholder="25-0001"/></div>
+          <div class="fg"><label>Grade/Year Level</label><input id="ns-grade" class="fi" placeholder="Grade 7"/></div>
+          <div class="fg"><label>Section</label><input id="ns-sec" class="fi" placeholder="Excellence"/></div>
+          <div class="fg"><label>Division</label><select id="ns-div" class="fi"><option value="K12">K12</option><option value="IB">IB</option></select></div>
+          <div class="fg full"><label>Campus</label><select id="ns-campus" class="fi">${CAMPUSES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
+          <div class="fg"><label>Parent/Guardian Name</label><input id="ns-parent" class="fi" placeholder="Mr./Ms. Dela Cruz"/></div>
+          <div class="fg"><label>Parent Email</label><input id="ns-email" class="fi" type="email" placeholder="parent@gmail.com"/></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-school" onclick="submitStudent()">Add Student</button>
+      </div>
+    </div>
+  </div>`;}
+
+function rNewUserModal(){
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">⚙️ Add System User</div><button class="close-btn" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-teal mb12">Use <b>@southville.edu.ph</b> email for all system users.</div>
+        <div class="fgrid">
+          <div class="fg full"><label>Full Name</label><input id="nu-name" class="fi"/></div>
+          <div class="fg full"><label>Email (@southville.edu.ph)</label><input id="nu-email" class="fi" type="email" placeholder="name@southville.edu.ph"/></div>
+          <div class="fg"><label>Password</label><input id="nu-pw" class="fi" type="password" placeholder="Min 8 characters"/></div>
+          <div class="fg"><label>Role</label><select id="nu-role" class="fi">${Object.entries(ROLES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}</select></div>
+          <div class="fg full"><label>Campus</label><select id="nu-campus" class="fi">${CAMPUSES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-school" onclick="submitUser()">Create User</button>
+      </div>
+    </div>
+  </div>`;}
+
+function rBatchModal(){
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head"><div class="modal-title">⬆ Batch Upload Students</div><button class="close-btn" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-info mb12">Upload CSV from Google Sheets or your existing Google Form responses. Compatible with your current enrollment records.</div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">CSV Format</div>
+        <div style="background:#fafafa;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:var(--text2);line-height:1.9;margin-bottom:14px">
+          full_name,student_id,grade_level,section,division,campus_code,parent_name,parent_email<br>
+          "Dela Cruz, Juan",25-0001,Grade 7,Excellence,K12,<b>luxembourg</b>,Mr. Cruz,parent@gmail.com<br>
+          "Kim, Soo",25-0002,IB Year 1,Alpha,IB,<b>tropical</b>,Mrs. Kim,kim@gmail.com
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:12px">Campus codes: <span class="mono">luxembourg · munich · tropical · star</span></div>
+        <div class="fg mb12"><label>Upload CSV File</label><input type="file" id="batch-file" accept=".csv" class="fi" style="padding:6px"/></div>
+        <div style="font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Or Paste CSV Data</div>
+        <textarea id="batch-text" class="fi" style="min-height:110px;font-family:monospace;font-size:11px" placeholder="Paste CSV data here…"></textarea>
+        <div class="alert alert-teal mt12" style="font-size:11.5px">💡 Compatible with Google Sheets export from your existing enrollment Google Form.</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-school" onclick="processBatch()">Process Upload</button>
+      </div>
+    </div>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// ACTIONS
+// ════════════════════════════════════════════════════════════════
+function renderQR(elId, data){
+  const el=g(elId);
+  if(!el||el.children.length>0||!data)return;
+  try{new QRCode(el,{text:data,width:94,height:94,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});}
+  catch(e){el.innerHTML=`<div style="font-size:8px;color:#333;word-break:break-all;padding:4px">${data}</div>`;}
+}
+
+function quickApprove(id){
+  const pa=DB.passes.find(p=>p.id===id);if(!pa)return;
+  pa.status=pa.type==='temporary'?'approved':'active';
+  pa.by=DB.currentUser.id;pa.at=today();
+  const st=student(pa.sid);
+  toast(`✅ Pass approved for ${st?.name}. Email sent to ${st?.pEmail}`);
+  render();
+}
+function quickSuspend(id){
+  const pa=DB.passes.find(p=>p.id===id);if(pa){pa.status='suspended';toast('Pass suspended','warn');render();}
+}
+function quickReactivate(id){
+  const pa=DB.passes.find(p=>p.id===id);if(pa){pa.status='active';toast('Pass reactivated');render();}
+}
+function processTGP(id){
+  const pa=DB.passes.find(p=>p.id===id);if(pa){pa.status='for_approval';toast('TGP forwarded to Discipline Head');render();}
+}
+
+function submitPGP(){
+  const sid=g('pgp-sid')?.value;
+  const gates=[...document.querySelectorAll('input[name="pgp-gate"]:checked')].map(x=>x.value);
+  const exit=g('pgp-exit')?.value;
+  const from=g('pgp-from')?.value;
+  const until=g('pgp-until')?.value;
+  if(!sid){alert('Select a student.');return;}
+  if(gates.length===0){alert('Select at least one gate.');return;}
+  const st=student(sid);
+  if(DB.passes.find(p=>p.sid===sid&&p.type==='permanent'&&p.status==='active')){alert('This student already has an active permanent pass.');return;}
+  DB.passes.push({id:'p'+Date.now(),sid,no:genPGP(),type:'permanent',status:'pending',gates,exit,from,until,by:null,at:null,sy:SY});
+  toast(`PGP application submitted for ${st?.name}. Awaiting approval.`);closeModal();render();
+}
+
+function submitTGP(){
+  const sid=g('tgp-sid')?.value;
+  const date=g('tgp-date')?.value;
+  const gate=g('tgp-gate')?.value;
+  const exit=g('tgp-exit')?.value;
+  const remarks=g('tgp-remarks')?.value;
+  if(!sid||!date||!remarks){alert('Fill all required fields.');return;}
+  const st=student(sid);
+  DB.passes.push({id:'t'+Date.now(),sid,no:genTGP(),type:'temporary',status:'pending',gates:[gate],exit,from:date,until:date,by:null,at:null,sy:SY});
+  toast(`TGP request submitted for ${st?.name}`);closeModal();render();
+}
+
+function submitStudent(){
+  const name=g('ns-name')?.value?.trim();
+  const sid=g('ns-sid')?.value?.trim();
+  if(!name||!sid){alert('Name and Student ID required.');return;}
+  if(DB.students.find(s=>s.sid===sid)){alert('Student ID already exists.');return;}
+  const photos=['👦','👧','🧑'];
+  DB.students.push({id:'s'+Date.now(),name,sid,grade:g('ns-grade')?.value||'Grade 7',section:g('ns-sec')?.value||'General',division:g('ns-div')?.value||'K12',campus:g('ns-campus')?.value||'lux',parent:g('ns-parent')?.value||'',pEmail:g('ns-email')?.value||'',photo:photos[Math.floor(Math.random()*3)],status:'active'});
+  toast('Student added successfully');closeModal();render();
+}
+
+function submitUser(){
+  const name=g('nu-name')?.value?.trim();
+  const email=g('nu-email')?.value?.trim();
+  const pw=g('nu-pw')?.value;
+  if(!name||!email||!pw){alert('All fields required.');return;}
+  if(!email.endsWith('@southville.edu.ph')&&!email.endsWith('@sgen.edu.ph')){alert('Must use a Southville school email.');return;}
+  if(DB.users.find(u=>u.email===email)){alert('Email already registered.');return;}
+  const av=name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  DB.users.push({id:'u'+Date.now(),name,email,role:g('nu-role')?.value||'secretary',campus:g('nu-campus')?.value||'lux',pw,av});
+  toast('User created');closeModal();render();
+}
+
+function processBatch(){
+  const text=g('batch-text')?.value?.trim();
+  if(!text){toast('Paste CSV data first','warn');return;}
+  const lines=text.split('\n').filter(l=>l.trim()&&!l.toLowerCase().startsWith('full_name'));
+  let added=0,skipped=0;
+  lines.forEach(line=>{
+    const parts=line.split(',').map(p=>p.replace(/^"|"$/g,'').trim());
+    if(parts.length<6)return;
+    const [name,sid,grade,section,division,campusCode,,parentName,parentEmail]=parts;
+    if(!name||!sid)return;
+    if(DB.students.find(s=>s.sid===sid)){skipped++;return;}
+    const c=CAMPUSES.find(c=>c.id===campusCode);
+    if(!c){skipped++;return;}
+    const photos=['👦','👧','🧑'];
+    DB.students.push({id:'s'+Date.now()+Math.random(),name,sid,grade:grade||'Grade 7',section:section||'General',division:division||'K12',campus:c.id,parent:parentName||'',pEmail:parentEmail||'',photo:photos[Math.floor(Math.random()*3)],status:'active'});
+    added++;
+  });
+  toast(`✅ ${added} student(s) added, ${skipped} skipped`);closeModal();render();
+}
+
+// ════════════════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════════════════
+function rToast(){
+  const t=S.toast;
+  const styles={ok:'border-color:#86efac;color:var(--green)',warn:'border-color:#fde68a;color:var(--yellow)',danger:'border-color:#fca5a5;color:var(--red)'};
+  const icons={ok:'✅',warn:'⚠️',danger:'❌'};
+  return `<div class="toast" style="${styles[t.type||'ok']||styles.ok}">
+    <span>${icons[t.type||'ok']||icons.ok}</span><span>${t.msg}</span>
+  </div>`;}
+
+// ════════════════════════════════════════════════════════════════
+// BIND
+// ════════════════════════════════════════════════════════════════
+function bindAll(){
+  document.onkeydown=e=>{if(e.key==='Escape'&&S.modal)closeModal();};
+}
+
+// BOOT
+render();
+</script>
+</body>
+</html>
