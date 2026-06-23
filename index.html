@@ -624,17 +624,27 @@ function pgScanner(){
           </div>
         </div>`:
         `<div style="padding:16px">
-          <div style="background:#111;border-radius:var(--radius);overflow:hidden;position:relative;min-height:200px;display:flex;align-items:center;justify-content:center">
-            <video id="cam-video" style="width:100%;border-radius:var(--radius);display:none;max-height:220px;object-fit:cover"></video>
+          <div style="background:#111;border-radius:var(--radius);overflow:hidden;position:relative;min-height:220px">
+            <video id="cam-video" style="width:100%;border-radius:var(--radius);display:none;max-height:280px;object-fit:cover"></video>
             <canvas id="cam-canvas" style="display:none"></canvas>
-            <div id="cam-placeholder" style="text-align:center;color:#fff;padding:30px">
-              <div style="font-size:38px;margin-bottom:10px;opacity:.7">📷</div>
-              <div style="font-size:13px;font-weight:600;margin-bottom:6px">Camera Scanner</div>
-              <div style="font-size:11px;color:#aaa;margin-bottom:14px">Handles glare and screen reflections</div>
-              <button class="btn btn-teal" onclick="startCamera()">Start Camera</button>
+            <!-- Scan corner guide — visible once camera starts -->
+            <div id="scan-guide" style="display:none;position:absolute;inset:0;pointer-events:none">
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:170px;height:170px;border:2px solid rgba(0,201,177,.5);border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)">
+                <div style="position:absolute;top:-3px;left:-3px;width:24px;height:24px;border-top:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:4px 0 0 0"></div>
+                <div style="position:absolute;top:-3px;right:-3px;width:24px;height:24px;border-top:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 4px 0 0"></div>
+                <div style="position:absolute;bottom:-3px;left:-3px;width:24px;height:24px;border-bottom:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:0 0 0 4px"></div>
+                <div style="position:absolute;bottom:-3px;right:-3px;width:24px;height:24px;border-bottom:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 0 4px 0"></div>
+                <div style="position:absolute;bottom:-28px;left:0;right:0;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:600">Align QR here</div>
+              </div>
+            </div>
+            <div id="cam-placeholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:28px">
+              <div style="font-size:44px;margin-bottom:12px;opacity:.7">📷</div>
+              <div style="font-size:13px;font-weight:700;margin-bottom:6px">Camera QR Scanner</div>
+              <div style="font-size:11.5px;color:#bbb;margin-bottom:16px;max-width:240px;line-height:1.5">Works even through screen glare and phone screen reflections</div>
+              <button class="btn btn-teal" onclick="startCamera()">▶ Start Camera</button>
             </div>
           </div>
-          <div id="cam-status" class="muted" style="font-size:11px;text-align:center;margin-top:8px"></div>
+          <div id="cam-status" style="font-size:11.5px;text-align:center;margin-top:8px;min-height:18px;color:var(--text2)"></div>
         </div>`}
         ${sr?`<div style="padding:0 16px 16px">
           <div class="${sr.ok?'scan-ok':'scan-fail'}">
@@ -707,21 +717,37 @@ function pgScanner(){
   </div>`;}
 
 function doScan(){
-  const input=S.scanInput.trim().toUpperCase();
-  if(!input){toast('Enter a pass number','warn');return;}
-  const pa=DB.passes.find(p=>p.no===input||p.no===input);
-  if(!pa){set({scanResult:{ok:false,reason:'Pass not found in the system.',st:null,pa:{id:null,no:input,gates:[],exit:'',type:'',status:''}}});return;}
+  const raw = S.scanInput.trim();
+  if(!raw){toast('Enter a pass number','warn');return;}
+
+  // Try to decode base64 QR payload first
+  let input = raw.toUpperCase();
+  try {
+    const decoded = JSON.parse(atob(raw));
+    if(decoded && decoded.pgp) input = decoded.pgp.toUpperCase();
+  } catch(e) { /* not base64, use raw */ }
+
+  // Also try direct match without case sensitivity
+  const pa = DB.passes.find(p =>
+    p.no.toUpperCase() === input ||
+    p.no.toUpperCase() === raw.toUpperCase()
+  );
+
+  if(!pa){
+    set({scanResult:{ok:false,reason:`Pass "${raw}" not found in the system. Check the pass number and try again.`,st:null,pa:{id:null,no:raw,gates:[],exit:'',type:'',status:''}}});
+    return;
+  }
   const st=student(pa.sid);
   let denied=false,reason='';
-  if(pa.status==='revoked'){denied=true;reason='This pass has been permanently revoked.';}
-  else if(pa.status==='suspended'){denied=true;reason='This pass is currently suspended.';}
-  else if(pa.status==='rejected'){denied=true;reason='This pass application was rejected.';}
-  else if(pa.type==='permanent'&&pa.status!=='active'){denied=true;reason=`Pass status is '${pa.status}' — must be active.`;}
+  if(pa.status==='revoked')    {denied=true;reason='This pass has been permanently revoked.';}
+  else if(pa.status==='suspended') {denied=true;reason='This pass is currently suspended.';}
+  else if(pa.status==='rejected')  {denied=true;reason='This pass application was rejected.';}
+  else if(pa.type==='permanent'&&pa.status!=='active'){denied=true;reason=`Pass status is '${pa.status}' — must be active to use.`;}
   else if(pa.type==='temporary'){
-    if(pa.status!=='approved'){denied=true;reason='Temporary pass is not yet approved.';}
-    else if(pa.from!==today()){denied=true;reason=`Temporary pass only valid on ${fmtDate(pa.from)}.`;}
+    if(pa.status!=='approved'){denied=true;reason='Temporary pass has not been approved yet.';}
+    else if(pa.from!==today()){denied=true;reason=`Temporary pass only valid on ${fmtDate(pa.from)}. Today is ${fmtDate(today())}.`;}
   }
-  set({scanResult:{ok:!denied,reason:denied?reason:'Valid pass — all checks passed.',st,pa}});
+  set({scanResult:{ok:!denied,reason:denied?reason:'✓ Valid pass — all checks passed.',st,pa}});
 }
 
 function logExit(passId,studentId){
@@ -734,29 +760,85 @@ function logExit(passId,studentId){
   set({scanResult:null,scanInput:''});
 }
 
-let camStream=null,scanInt=null;
+let camStream=null,scanInt=null,scanLocked=false;
+
 function startCamera(){
-  const ph=g('cam-placeholder');const vid=g('cam-video');const stat=g('cam-status');
-  if(!navigator.mediaDevices?.getUserMedia){toast('Camera not available in this browser','warn');return;}
-  if(ph)ph.style.display='none';
-  if(stat)stat.textContent='📡 Scanning… hold QR code steady';
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}}})
-    .then(stream=>{
-      camStream=stream;vid.srcObject=stream;vid.style.display='block';vid.play();
-      scanInt=setInterval(()=>{
-        const c=g('cam-canvas');if(!c||!vid.videoWidth)return;
-        c.width=vid.videoWidth;c.height=vid.videoHeight;
-        const ctx=c.getContext('2d');ctx.drawImage(vid,0,0);
-        const id=ctx.getImageData(0,0,c.width,c.height);
-        if(window.jsQR){
-          const code=jsQR(id.data,id.width,id.height,{inversionAttempts:'attemptBoth'});
-          if(code){stopCamera();S.scanInput=code.data;set({tab:0});setTimeout(doScan,100);}
-        }
-      },400);
-    })
-    .catch(()=>{if(ph)ph.style.display='block';toast('Camera access denied. Use manual input.','warn');});
+  const ph=g('cam-placeholder');
+  const vid=g('cam-video');
+  const stat=g('cam-status');
+  if(!navigator.mediaDevices?.getUserMedia){
+    toast('Camera not available — use Manual Input tab','warn');
+    return;
+  }
+  scanLocked=false;
+  if(ph) ph.style.display='none';
+
+  navigator.mediaDevices.getUserMedia({
+    video:{facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}}
+  }).then(stream=>{
+    camStream=stream;
+    if(!g('cam-video')){stream.getTracks().forEach(t=>t.stop());return;}
+    const v=g('cam-video');
+    v.srcObject=stream;
+    v.style.display='block';
+    v.play();
+
+    // Update status text
+    const s=g('cam-status');
+    if(s) s.innerHTML='<span style="color:var(--teal-d);font-weight:600">📡 Scanning… hold QR code steady in frame</span>';
+    const guide=g('scan-guide');
+    if(guide) guide.style.display='block';
+
+    scanInt=setInterval(()=>{
+      if(scanLocked) return;
+      const canvas=g('cam-canvas');
+      const video=g('cam-video');
+      if(!canvas||!video||!video.videoWidth) return;
+
+      canvas.width=video.videoWidth;
+      canvas.height=video.videoHeight;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(video,0,0);
+      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+
+      if(!window.jsQR) return;
+      // attemptBoth = tries normal AND inverted — handles glare on phone screens
+      const code=jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'attemptBoth'});
+      if(code && code.data){
+        scanLocked=true; // prevent multiple triggers
+        stopCamera();
+
+        // Show what was detected before switching tab
+        const detected=code.data.trim();
+        const statusEl=g('cam-status');
+        if(statusEl) statusEl.innerHTML=`<span style="color:var(--green);font-weight:700">✅ QR Detected: ${detected}</span>`;
+
+        // Switch to manual tab and fill input, then scan
+        S.tab=0;
+        S.scanInput=detected;
+
+        // Small delay so DOM updates before doScan reads the input
+        setTimeout(()=>{
+          render();
+          setTimeout(doScan, 80);
+        }, 150);
+      }
+    },300);
+
+  }).catch(err=>{
+    console.error('Camera error:', err);
+    if(ph) ph.style.display='block';
+    const s=g('cam-status');
+    if(s) s.innerHTML='<span style="color:var(--red)">Camera access denied or unavailable</span>';
+    toast('Camera access denied — switch to Manual Input tab','danger');
+  });
 }
-function stopCamera(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}clearInterval(scanInt);}
+
+function stopCamera(){
+  if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
+  clearInterval(scanInt);
+  scanInt=null;
+}
 
 // ════════════════════════════════════════════════════════════════
 // EXIT LOG
