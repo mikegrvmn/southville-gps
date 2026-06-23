@@ -320,8 +320,24 @@ const statusBadge = s => ({active:'b-active',pending:'b-pending',approved:'b-app
 
 let S = { page:'login', modal:null, mdata:{}, fPass:'all', fType:'all', fCampus:'all', search:'', searchS:'', tab:0, scanResult:null, scanInput:'', toast:null, sidebarOpen:true };
 function set(patch){Object.assign(S,patch);render();}
+function navigateTo(page){
+  // Stop camera before leaving scanner page
+  if(S.page==='scanner') stopCamera();
+  // Clean up overlays
+  ['toast-overlay','modal-overlay'].forEach(id=>{const el=g(id);if(el)el.remove();});
+  set({page});
+}
 function toast(msg,type='ok'){
-  S.toast={msg,type};render();
+  S.toast={msg,type};
+  // If on scanner, update overlay directly without full render
+  if(S.page==='scanner'&&g('cam-video')){
+    let el=g('toast-overlay');
+    if(!el){el=document.createElement('div');el.id='toast-overlay';document.body.appendChild(el);}
+    el.innerHTML=rToast();
+    setTimeout(()=>{S.toast=null;const e=g('toast-overlay');if(e)e.innerHTML='';},3200);
+    return;
+  }
+  render();
   setTimeout(()=>{S.toast=null;render();},3200);
 }
 
@@ -331,6 +347,29 @@ function toast(msg,type='ok'){
 function render(){
   const root=g('root');
   if(S.page==='login'){root.innerHTML=rLogin();bindLogin();return;}
+
+  // If scanner page is already mounted, only update overlays — never destroy the video element
+  const scannerMounted = S.page==='scanner' && g('cam-video');
+  if(scannerMounted){
+    // Only update toast and modal overlay — leave scanner DOM untouched
+    let toastEl=g('toast-overlay');
+    if(!toastEl){toastEl=document.createElement('div');toastEl.id='toast-overlay';document.body.appendChild(toastEl);}
+    toastEl.innerHTML=S.toast?rToast():'';
+    let modalEl=g('modal-overlay');
+    if(!modalEl){modalEl=document.createElement('div');modalEl.id='modal-overlay';document.body.appendChild(modalEl);}
+    modalEl.innerHTML=S.modal?rModal():'';
+    if(S.modal==='viewPass') renderQR('modal-qr', S.mdata.passId ? DB.passes.find(p=>p.id===S.mdata.passId)?.no : null, 94);
+    // Update sidebar active state only
+    document.querySelectorAll('.nav-item').forEach(el=>{
+      el.classList.toggle('active', el.dataset.page===S.page);
+    });
+    return;
+  }
+
+  // Full re-render for all other pages
+  // Clean up any orphan overlays
+  ['toast-overlay','modal-overlay'].forEach(id=>{const el=g(id);if(el)el.remove();});
+
   root.innerHTML=`
     ${S.toast?rToast():''}
     ${S.modal?rModal():''}
@@ -344,8 +383,6 @@ function render(){
       </div>
     </div>`;
   bindAll();
-  // QR rendering — uses polling internally, no need for extra timeout
-  if(S.page==='scanner'&&S.scanResult?.pa) renderQR('sr-qr', S.scanResult.pa.no, 68);
   if(S.modal==='viewPass') renderQR('modal-qr', S.mdata.passId ? DB.passes.find(p=>p.id===S.mdata.passId)?.no : null, 94);
 }
 
@@ -434,7 +471,7 @@ function rSidebar(){
         const vis=g.items.filter(i=>!i.roles||i.roles.includes(r));
         if(!vis.length)return '';
         return `<div class="nav-sec">${g.sec}</div>${vis.map(i=>`
-          <button class="nav-item ${S.page===i.id?'active':''}" onclick="set({page:'${i.id}'})">
+          <button class="nav-item ${S.page===i.id?'active':''}" data-page="${i.id}" onclick="navigateTo('${i.id}')">
             <span>${i.ico}</span><span>${i.lbl}</span>
             ${i.id==='dashboard'&&pending>0?`<span class="nav-badge">${pending}</span>`:''}
           </button>`).join('')}`;
@@ -773,20 +810,21 @@ function logExit(passId,studentId){
 function switchScanTab(tab){
   stopCamera();
   S.tab=tab;
-  const panels={0:'panel-usb',1:'panel-camera',2:'panel-manual'};
+  // Pure DOM — never call set() or render() here
   ['panel-usb','panel-camera','panel-manual'].forEach(id=>{
     const el=g(id);
     if(el) el.style.display='none';
   });
-  const active=g(panels[tab]);
+  const map={0:'panel-usb',1:'panel-camera',2:'panel-manual'};
+  const active=g(map[tab]);
   if(active) active.style.display='block';
-  // Update tab active states
-  const tabs=document.querySelectorAll('.tab-bar .tab');
-  tabs.forEach(t=>t.classList.remove('on'));
-  if(tabs[tab]) tabs[tab].classList.add('on');
-  // Focus USB input when switching to USB tab
-  if(tab===0) setTimeout(()=>{const el=g('usb-in');if(el)el.focus();},100);
+  // Update tab active states visually
+  document.querySelectorAll('.tab-bar .tab').forEach((t,i)=>{
+    const tabMap={0:0,1:2,2:1}; // USB=first tab, Camera=second, Manual=third
+    t.classList.toggle('on', tabMap[i]===tab);
+  });
   clearScanResult();
+  if(tab===0) setTimeout(()=>{const el=g('usb-in');if(el)el.focus();},100);
 }
 
 function usbQuickFill(no){
@@ -1051,9 +1089,13 @@ function logExitDirect(passId,studentId){
   }
   toast(`✅ Exit logged for ${st.name}. Email sent to ${st.pEmail}`);
   clearScanResult();
-  // Switch back to manual tab cleanly
   S.tab=0; S.scanInput='';
-  setTimeout(render, 400);
+  // Switch input focus to USB field for next scan
+  setTimeout(()=>{
+    switchScanTab(0);
+    const inp=g('usb-in');
+    if(inp){inp.value='';inp.focus();}
+  },300);
 }
 
 function logDeniedDirect(passId,studentId){
@@ -1064,7 +1106,7 @@ function logDeniedDirect(passId,studentId){
   toast(`Denied attempt logged for ${st?.name||'Unknown'}`,'warn');
   clearScanResult();
   S.tab=0;
-  setTimeout(render, 400);
+  setTimeout(()=>{switchScanTab(0);const inp=g('usb-in');if(inp){inp.value='';inp.focus();}},300);
 }
 
 // ════════════════════════════════════════════════════════════════
