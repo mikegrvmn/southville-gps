@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Southville Gate Pass System — Preview</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 /* ── RESET & BASE ───────────────────────────────────────────── */
 *{box-sizing:border-box;margin:0;padding:0}
@@ -326,8 +327,9 @@ function render(){
       </div>
     </div>`;
   bindAll();
-  if(S.page==='scanner'&&S.scanResult?.pass) setTimeout(()=>renderQR('sr-qr',S.scanResult.pass.no),150);
-  if(S.modal==='viewPass') setTimeout(()=>renderQR('modal-qr',S.mdata.pass?.no),150);
+  // QR rendering — uses polling internally, no need for extra timeout
+  if(S.page==='scanner'&&S.scanResult?.pa) renderQR('sr-qr', S.scanResult.pa.no, 68);
+  if(S.modal==='viewPass') renderQR('modal-qr', S.mdata.passId ? DB.passes.find(p=>p.id===S.mdata.passId)?.no : null, 94);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -938,6 +940,7 @@ function pgStudents(){
             <td>${ap?`<span class="badge b-active">PGP Active</span>`:'<span class="muted" style="font-size:11px">—</span>'}</td>
             <td>
               <div class="tbl-actions">
+                ${can(['system_admin','deputy_principal','discipline_head','student_affairs'])?`<button class="btn btn-ghost btn-xs" onclick="openModal('editStudent',{sid:'${st.id}'})">✏️ Edit</button>`:''}
                 ${ap?`<button class="btn btn-ghost btn-xs" onclick="openModal('viewPass',{passId:'${ap.id}'})">View Pass</button>`:`<button class="btn btn-school btn-xs" onclick="openModal('newPGP',{sid:'${st.id}'})">Apply Pass</button>`}
               </div>
             </td>
@@ -1086,12 +1089,13 @@ function closeModal(){stopCamera();set({modal:null,mdata:{}});}
 
 function rModal(){
   const m=S.modal;
-  if(m==='viewPass')   return rViewPassModal();
-  if(m==='newPGP')     return rNewPGPModal();
-  if(m==='newTGP')     return rNewTGPModal();
-  if(m==='newStudent') return rNewStudentModal();
-  if(m==='newUser')    return rNewUserModal();
-  if(m==='batchUpload')return rBatchModal();
+  if(m==='viewPass')    return rViewPassModal();
+  if(m==='newPGP')      return rNewPGPModal();
+  if(m==='newTGP')      return rNewTGPModal();
+  if(m==='newStudent')  return rNewStudentModal();
+  if(m==='editStudent') return rEditStudentModal();
+  if(m==='newUser')     return rNewUserModal();
+  if(m==='batchUpload') return rBatchModal();
   return '';
 }
 
@@ -1105,6 +1109,8 @@ function rViewPassModal(){
       <div class="modal-head">
         <div class="modal-title">Virtual Gate Pass</div>
         <div class="flex gap8">
+          <button class="btn btn-teal btn-sm" onclick="downloadPass('png')">⬇ PNG</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadPass('jpeg')">⬇ JPEG</button>
           <button class="btn btn-school btn-sm" onclick="window.print()">🖨 Print</button>
           <button class="close-btn" onclick="closeModal()">✕</button>
         </div>
@@ -1149,7 +1155,7 @@ function rViewPassModal(){
   </div>`;}
 
 function rPassCard(pa,st,qrId){return `
-  <div class="pass-card">
+  <div class="pass-card" id="pass-card-modal">
     <div class="pass-hdr">
       <div class="pass-school">Southville International School and Colleges</div>
       <div class="pass-title">${(pa.type==='permanent'?'PERMANENT':'TEMPORARY')} GATE PASS</div>
@@ -1336,11 +1342,29 @@ function rBatchModal(){
 // ════════════════════════════════════════════════════════════════
 // ACTIONS
 // ════════════════════════════════════════════════════════════════
-function renderQR(elId, data){
-  const el=g(elId);
-  if(!el||el.children.length>0||!data)return;
-  try{new QRCode(el,{text:data,width:94,height:94,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});}
-  catch(e){el.innerHTML=`<div style="font-size:8px;color:#333;word-break:break-all;padding:4px">${data}</div>`;}
+function renderQR(elId, data, size){
+  size = size || 94;
+  // Retry up to 20 times every 80ms — waits for DOM to fully paint after render()
+  let tries = 0;
+  const attempt = () => {
+    const el = g(elId);
+    if (!el) { if (++tries < 20) setTimeout(attempt, 80); return; }
+    if (el.children.length > 0) return; // already rendered
+    if (!data) { el.innerHTML = '<div style="font-size:9px;color:#999;text-align:center;padding:8px">No QR data</div>'; return; }
+    try {
+      new QRCode(el, {
+        text: String(data),
+        width: size,
+        height: size,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } catch(e) {
+      el.innerHTML = `<div style="font-size:8px;color:#333;word-break:break-all;padding:4px;text-align:center">${data}</div>`;
+    }
+  };
+  setTimeout(attempt, 60);
 }
 
 function quickApprove(id){
@@ -1427,6 +1451,130 @@ function processBatch(){
     added++;
   });
   toast(`✅ ${added} student(s) added, ${skipped} skipped`);closeModal();render();
+}
+
+// ── EDIT STUDENT MODAL ────────────────────────────────────────────
+function rEditStudentModal(){
+  const st = DB.students.find(s => s.id === S.mdata.sid);
+  if(!st) return '';
+  return `
+  <div class="overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-head">
+        <div class="modal-title">✏️ Edit Student — ${st.name}</div>
+        <button class="close-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info mb12">Allowed roles: System Admin, Deputy Principal, Discipline Head, Student Affairs</div>
+        <div class="fgrid">
+          <div class="fg full">
+            <label>Full Name (Last, First) *</label>
+            <input id="es-name" class="fi" value="${st.name}"/>
+          </div>
+          <div class="fg">
+            <label>Student ID *</label>
+            <input id="es-sid" class="fi" value="${st.sid}"/>
+          </div>
+          <div class="fg">
+            <label>Grade / Year Level</label>
+            <input id="es-grade" class="fi" value="${st.grade}"/>
+          </div>
+          <div class="fg">
+            <label>Section</label>
+            <input id="es-section" class="fi" value="${st.section}"/>
+          </div>
+          <div class="fg">
+            <label>Division</label>
+            <select id="es-div" class="fi">
+              <option value="K12" ${st.division==='K12'?'selected':''}>K12</option>
+              <option value="IB" ${st.division==='IB'?'selected':''}>IB</option>
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Campus</label>
+            <select id="es-campus" class="fi">
+              ${CAMPUSES.map(c=>`<option value="${c.id}" ${st.campus===c.id?'selected':''}>${c.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg">
+            <label>Parent / Guardian Name</label>
+            <input id="es-parent" class="fi" value="${st.parent}"/>
+          </div>
+          <div class="fg">
+            <label>Parent Email</label>
+            <input id="es-email" class="fi" type="email" value="${st.pEmail}"/>
+          </div>
+          <div class="fg full">
+            <label>Status</label>
+            <select id="es-status" class="fi">
+              <option value="active" ${st.status==='active'?'selected':''}>Active</option>
+              <option value="inactive" ${st.status==='inactive'?'selected':''}>Inactive</option>
+              <option value="graduated" ${st.status==='graduated'?'selected':''}>Graduated</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-school" onclick="saveEditStudent('${st.id}')">Save Changes</button>
+      </div>
+    </div>
+  </div>`;}
+
+function saveEditStudent(id){
+  const st = DB.students.find(s=>s.id===id);
+  if(!st) return;
+  const newSid = g('es-sid')?.value?.trim();
+  const newName = g('es-name')?.value?.trim();
+  if(!newName||!newSid){alert('Name and Student ID are required.');return;}
+  if(newSid !== st.sid && DB.students.find(s=>s.sid===newSid)){alert('Student ID already exists.');return;}
+  st.name    = newName;
+  st.sid     = newSid;
+  st.grade   = g('es-grade')?.value?.trim() || st.grade;
+  st.section = g('es-section')?.value?.trim() || st.section;
+  st.division= g('es-div')?.value || st.division;
+  st.campus  = g('es-campus')?.value || st.campus;
+  st.parent  = g('es-parent')?.value?.trim() || st.parent;
+  st.pEmail  = g('es-email')?.value?.trim() || st.pEmail;
+  st.status  = g('es-status')?.value || st.status;
+  toast(`✅ Student record updated for ${st.name}`);
+  closeModal();
+  render();
+}
+
+// ── DOWNLOAD PASS AS PNG / JPEG ───────────────────────────────────
+function downloadPass(fmt){
+  const el = g('pass-card-modal');
+  if(!el){toast('Pass card not found','danger');return;}
+  // Ensure QR is rendered before capture
+  const qrEl = g('modal-qr');
+  const doCapture = () => {
+    html2canvas(el, {
+      backgroundColor: null,
+      scale: 3,           // high resolution
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
+    }).then(canvas => {
+      const pa = DB.passes.find(p=>p.id===S.mdata.passId);
+      const fname = `GatePass-${pa?.no||'SISC'}.${fmt}`;
+      const type = fmt==='png' ? 'image/png' : 'image/jpeg';
+      const quality = fmt==='jpeg' ? 0.95 : 1;
+      const link = document.createElement('a');
+      link.download = fname;
+      link.href = canvas.toDataURL(type, quality);
+      link.click();
+      toast(`✅ Downloaded as ${fname}`);
+    }).catch(e=>{
+      toast('Download failed — try Print instead','danger');
+    });
+  };
+  // If QR not yet rendered, wait a bit more
+  if(qrEl && qrEl.children.length === 0){
+    setTimeout(doCapture, 600);
+  } else {
+    doCapture();
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
