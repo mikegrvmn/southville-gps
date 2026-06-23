@@ -721,30 +721,27 @@ function pgScanner(){
       <!-- CAMERA PANEL -->
       <div id="panel-camera" style="display:${S.tab===1?'block':'none'};padding:16px">
         <!-- Camera video — full width, tall -->
-        <div id="cam-wrap" style="background:#000;border-radius:var(--radius);overflow:hidden;position:relative;width:100%;aspect-ratio:16/9;min-height:200px">
-          <video id="cam-video" style="width:100%;height:100%;object-fit:cover;display:none;position:absolute;top:0;left:0"></video>
+        <div id="cam-wrap" style="background:#000;border-radius:var(--radius);overflow:hidden;position:relative;width:100%;min-height:240px">
+          <video id="cam-video" style="width:100%;height:auto;display:none;vertical-align:bottom;position:relative;z-index:1"></video>
           <canvas id="cam-canvas" style="display:none"></canvas>
 
-          <!-- Corner guide overlay -->
-          <div id="scan-guide" style="display:none;position:absolute;inset:0;pointer-events:none;background:rgba(0,0,0,.4)">
-            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:220px;height:220px;background:transparent;box-shadow:0 0 0 9999px rgba(0,0,0,.5)">
+          <!-- Corner guide overlay — z-index above video -->
+          <div id="scan-guide" style="display:none;position:absolute;inset:0;pointer-events:none;z-index:2">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;box-shadow:0 0 0 9999px rgba(0,0,0,.55)">
               <div style="position:absolute;top:-3px;left:-3px;width:28px;height:28px;border-top:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:3px 0 0 0"></div>
               <div style="position:absolute;top:-3px;right:-3px;width:28px;height:28px;border-top:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 3px 0 0"></div>
               <div style="position:absolute;bottom:-3px;left:-3px;width:28px;height:28px;border-bottom:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:0 0 0 3px"></div>
               <div style="position:absolute;bottom:-3px;right:-3px;width:28px;height:28px;border-bottom:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 0 3px 0"></div>
               <div id="scan-laser" style="display:none;position:absolute;left:0;right:0;height:2px;background:var(--teal);box-shadow:0 0 8px var(--teal);animation:laser 2s linear infinite"></div>
             </div>
-            <div style="position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.7);font-weight:600">Place QR code inside the frame</div>
+            <div style="position:absolute;bottom:12px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.8);font-weight:600">Place QR code inside the frame</div>
           </div>
 
           <!-- Start button placeholder -->
-          <div id="cam-placeholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:24px">
+          <div id="cam-placeholder" style="position:absolute;inset:0;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:24px;z-index:2">
             <div style="font-size:52px;margin-bottom:14px;opacity:.6">📷</div>
             <div style="font-size:15px;font-weight:700;margin-bottom:8px">Camera QR Scanner</div>
-            <div style="font-size:12px;color:#bbb;margin-bottom:20px;max-width:260px;line-height:1.6">
-              Point camera at any QR code on the virtual ID card.<br>
-              <span style="color:rgba(0,201,177,.8)">Tip: Use a printed copy or hold the phone screen away from camera to avoid focus issues.</span>
-            </div>
+            <div style="font-size:12px;color:#bbb;margin-bottom:20px;max-width:260px;line-height:1.6">Point camera at the QR code on the virtual ID card.</div>
             <button class="btn btn-teal" onclick="startCamera()" style="font-size:14px;padding:10px 24px">▶ Start Camera</button>
           </div>
         </div>
@@ -915,71 +912,143 @@ function startCamera(){
 }
 
 function startScanLoop(video){
-  if(scanInt) return; // already running
-  let frameCount=0;
+  if(scanInt) return;
 
-  scanInt=setInterval(()=>{
-    if(scanLocked) return;
+  // Offscreen canvas — fixed small size for SPEED (jsQR works best at ~640px wide)
+  const offscreen = document.createElement('canvas');
+  offscreen.width  = 640;
+  offscreen.height = Math.round(video.videoHeight / video.videoWidth * 640) || 360;
+  const ctx = offscreen.getContext('2d', {willReadFrequently: true});
+
+  // Also keep the hidden canvas for display purposes
+  const displayCanvas = g('cam-canvas');
+
+  let lastScan = 0;
+  let frameCount = 0;
+
+  function scanFrame(ts){
+    if(scanLocked) return; // stop loop when QR found
+
+    requestAnimationFrame(scanFrame);
+
+    // Throttle to ~15 scans/sec — fast enough, not CPU-burning
+    if(ts - lastScan < 66) return;
+    lastScan = ts;
+    frameCount++;
+
     if(!video.videoWidth || video.paused || video.ended) return;
 
-    // Use offscreen canvas for better performance
-    const canvas=g('cam-canvas');
-    if(!canvas) return;
+    // Draw to small offscreen canvas — faster for jsQR
+    ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx=canvas.getContext('2d',{willReadFrequently:true});
-    ctx.drawImage(video,0,0);
-
-    frameCount++;
-    const dbg=g('cam-debug');
-    if(dbg && frameCount%8===0){
-      dbg.innerHTML=`<span style="color:#666">Scanning frame ${frameCount} · ${video.videoWidth}×${video.videoHeight}</span>`;
+    const dbg = g('cam-debug');
+    if(dbg && frameCount % 10 === 0){
+      dbg.innerHTML = `<span style="color:var(--teal-d)">📡 Scanning frame ${frameCount}…</span>`;
     }
 
     if(!window.jsQR) return;
 
-    // ── ATTEMPT 1: full frame, both normal & inverted ──
-    const full=ctx.getImageData(0,0,canvas.width,canvas.height);
-    let code=jsQR(full.data,full.width,full.height,{inversionAttempts:'attemptBoth'});
+    const imgData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
 
-    // ── ATTEMPT 2: greyscale + high contrast ──
+    // ── Pass 1: Normal ──────────────────────────────────────────
+    let code = jsQR(imgData.data, imgData.width, imgData.height, {
+      inversionAttempts: 'dontInvert'
+    });
+
+    // ── Pass 2: Inverted (white QR on dark background) ──────────
     if(!code){
-      const d=new Uint8ClampedArray(full.data);
-      for(let i=0;i<d.length;i+=4){
-        const lum=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
-        const v2=lum>100?255:0; // hard threshold binarize
-        d[i]=d[i+1]=d[i+2]=v2;
+      code = jsQR(imgData.data, imgData.width, imgData.height, {
+        inversionAttempts: 'onlyInvert'
+      });
+    }
+
+    // ── Pass 3: Binarize — kills glare & low contrast ───────────
+    if(!code){
+      const d = new Uint8ClampedArray(imgData.data);
+      for(let i = 0; i < d.length; i += 4){
+        const lum = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+        const v = lum > 128 ? 255 : 0;
+        d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
       }
-      code=jsQR(d,full.width,full.height,{inversionAttempts:'attemptBoth'});
+      code = jsQR(d, imgData.width, imgData.height, {
+        inversionAttempts: 'attemptBoth'
+      });
     }
 
-    // ── ATTEMPT 3: center 60% crop ──
+    // ── Pass 4: Sharpen — helps with blurry/far QR codes ────────
     if(!code){
-      const cx=Math.floor(canvas.width*0.2);
-      const cy=Math.floor(canvas.height*0.2);
-      const cw=Math.floor(canvas.width*0.6);
-      const ch=Math.floor(canvas.height*0.6);
-      const crop=ctx.getImageData(cx,cy,cw,ch);
-      code=jsQR(crop.data,cw,ch,{inversionAttempts:'attemptBoth'});
+      const src = imgData.data;
+      const sharp = new Uint8ClampedArray(src.length);
+      const w = imgData.width;
+      const kernel = [0,-1,0,-1,5,-1,0,-1,0]; // sharpen kernel
+      for(let y=1;y<imgData.height-1;y++){
+        for(let x=1;x<w-1;x++){
+          let r=0,g2=0,b=0;
+          for(let ky=-1;ky<=1;ky++){
+            for(let kx=-1;kx<=1;kx++){
+              const idx=((y+ky)*w+(x+kx))*4;
+              const k=kernel[(ky+1)*3+(kx+1)];
+              r+=src[idx]*k; g2+=src[idx+1]*k; b+=src[idx+2]*k;
+            }
+          }
+          const i2=(y*w+x)*4;
+          sharp[i2]=Math.min(255,Math.max(0,r));
+          sharp[i2+1]=Math.min(255,Math.max(0,g2));
+          sharp[i2+2]=Math.min(255,Math.max(0,b));
+          sharp[i2+3]=255;
+        }
+      }
+      code = jsQR(sharp, imgData.width, imgData.height, {
+        inversionAttempts: 'attemptBoth'
+      });
     }
 
-    if(code&&code.data){
-      scanLocked=true;
+    if(code && code.data && code.data.trim()){
+      scanLocked = true;
+      const raw = code.data.trim();
+
+      // ── INSTANT visual feedback — flash green border ──────────
+      const wrap = g('cam-wrap');
+      if(wrap){
+        wrap.style.outline = '4px solid var(--teal)';
+        wrap.style.boxShadow = '0 0 0 4px rgba(0,201,177,.4)';
+      }
+
+      // Update guide to green
+      const guide = g('scan-guide');
+      if(guide){
+        guide.querySelectorAll('[style*="border-top"],[style*="border-bottom"]').forEach(el=>{
+          el.style.borderColor = 'var(--green)';
+        });
+      }
+
+      const dbg2 = g('cam-debug');
+      if(dbg2) dbg2.innerHTML = `<span style="color:#3ddc84;font-weight:800">✅ QR READ: ${raw}</span>`;
+      const stat = g('cam-status');
+      if(stat) stat.innerHTML = `<span style="color:var(--green);font-weight:700;font-size:13px">✅ QR detected — verifying…</span>`;
+
       stopCamera();
-      const raw=code.data.trim();
-      const dbg2=g('cam-debug');
-      if(dbg2) dbg2.innerHTML=`<span style="color:#3ddc84;font-weight:800">✅ QR READ: ${raw}</span>`;
-      const s=g('cam-status');
-      if(s) s.innerHTML=`<span style="color:var(--green);font-weight:700">✅ QR detected!</span>`;
-      setTimeout(()=>injectScanResult(raw),150);
+
+      // Remove green flash after 1s
+      setTimeout(()=>{
+        if(wrap){wrap.style.outline='';wrap.style.boxShadow='';}
+      },1000);
+
+      setTimeout(()=>injectScanResult(raw), 80);
     }
-  },250);
+  }
+
+  // Kick off the loop
+  requestAnimationFrame(scanFrame);
+
+  // Keep scanInt truthy so startScanLoop doesn't run twice
+  scanInt = true;
 }
 
 function stopCamera(){
   if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
-  clearInterval(scanInt);scanInt=null;
+  if(scanInt && scanInt !== true) clearInterval(scanInt);
+  scanInt=null;
 }
 
 // KEY FIX: inject scan result directly into #scan-result-box without re-rendering
