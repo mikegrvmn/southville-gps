@@ -169,6 +169,7 @@ textarea.fi{resize:vertical;min-height:68px}
 /* ── SCANNER ─────────────────────────────────────────────────── */
 .scan-area{background:var(--school-s);border:2px dashed rgba(66,36,103,.25);border-radius:var(--radius);padding:28px;text-align:center}
 .scan-ring{width:80px;height:80px;border:3px solid var(--teal);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:32px;animation:pulse 2s infinite}
+@keyframes laser{0%{top:0}100%{top:100%}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,201,177,.4)}50%{box-shadow:0 0 0 12px rgba(0,201,177,0)}}
 .scan-ok{background:#f0fdf4;border:2px solid #86efac;border-radius:var(--radius);padding:14px;margin-top:12px}
 .scan-fail{background:var(--red-s);border:2px solid #fca5a5;border-radius:var(--radius);padding:14px;margin-top:12px}
@@ -598,94 +599,118 @@ function pgDashboard(){
 function pgScanner(){
   const myc=DB.currentUser.campus;
   const todayFeed=DB.logs.filter(l=>l.at.startsWith(today())&&l.campus===myc).slice().reverse();
-  const sr=S.scanResult;
   return `
-  <div class="grid2">
-    <div>
-      <div class="card mb12">
-        <div class="card-head"><div class="card-title">📷 QR Code Scanner</div></div>
-        <div class="tab-bar" style="padding:0 16px">
-          <div class="tab ${S.tab===0?'on':''}" onclick="set({tab:0,scanResult:null})">Manual Input</div>
-          <div class="tab ${S.tab===1?'on':''}" onclick="set({tab:1,scanResult:null})">Camera Scan</div>
-        </div>
-        ${S.tab===0?`
-        <div style="padding:16px">
-          <div class="scan-area">
-            <div class="scan-ring">🎫</div>
-            <div class="bold mb8">Enter Pass Number</div>
-            <div class="muted mb12" style="font-size:12px">Type the PGP or TGP number to verify</div>
-            <div class="flex gap8" style="max-width:340px;margin:0 auto">
-              <input id="scan-in" class="fi" style="flex:1;font-family:monospace;text-align:center;font-size:12px;text-transform:uppercase" placeholder="PGP-XXXXXXXX-XXXX" value="${S.scanInput}" oninput="S.scanInput=this.value" onkeydown="if(event.key==='Enter')doScan()"/>
-              <button class="btn btn-teal" onclick="doScan()">Verify</button>
-            </div>
-            <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
-              ${DB.passes.filter(p=>['active','approved'].includes(p.status)).slice(0,6).map(p=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600;cursor:pointer;font-family:monospace" onclick="g('scan-in').value='${p.no}';S.scanInput='${p.no}';">${p.no}</span>`).join('')}
-            </div>
-          </div>
-        </div>`:
-        `<div style="padding:16px">
-          <div style="background:#111;border-radius:var(--radius);overflow:hidden;position:relative;min-height:220px">
-            <video id="cam-video" style="width:100%;border-radius:var(--radius);display:none;max-height:280px;object-fit:cover"></video>
-            <canvas id="cam-canvas" style="display:none"></canvas>
-            <!-- Scan corner guide — visible once camera starts -->
-            <div id="scan-guide" style="display:none;position:absolute;inset:0;pointer-events:none">
-              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);width:170px;height:170px;border:2px solid rgba(0,201,177,.5);border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)">
-                <div style="position:absolute;top:-3px;left:-3px;width:24px;height:24px;border-top:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:4px 0 0 0"></div>
-                <div style="position:absolute;top:-3px;right:-3px;width:24px;height:24px;border-top:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 4px 0 0"></div>
-                <div style="position:absolute;bottom:-3px;left:-3px;width:24px;height:24px;border-bottom:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:0 0 0 4px"></div>
-                <div style="position:absolute;bottom:-3px;right:-3px;width:24px;height:24px;border-bottom:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 0 4px 0"></div>
-                <div style="position:absolute;bottom:-28px;left:0;right:0;text-align:center;font-size:10px;color:rgba(255,255,255,.7);font-weight:600">Align QR here</div>
-              </div>
-            </div>
-            <div id="cam-placeholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:28px">
-              <div style="font-size:44px;margin-bottom:12px;opacity:.7">📷</div>
-              <div style="font-size:13px;font-weight:700;margin-bottom:6px">Camera QR Scanner</div>
-              <div style="font-size:11.5px;color:#bbb;margin-bottom:16px;max-width:240px;line-height:1.5">Works even through screen glare and phone screen reflections</div>
-              <button class="btn btn-teal" onclick="startCamera()">▶ Start Camera</button>
-            </div>
-          </div>
-          <div id="cam-status" style="font-size:11.5px;text-align:center;margin-top:8px;min-height:18px;color:var(--text2)"></div>
-        </div>`}
-        <div id="scan-result-box"></div>
-      </div>
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:14px;align-items:start">
 
+    <!-- LEFT: SCANNER -->
     <div class="card">
       <div class="card-head">
-        <div>
-          <div class="card-title">Live Exit Feed</div>
-          <div class="card-sub">${campus(myc)?.name||'Campus'} — Today</div>
+        <div><div class="card-title">📷 QR Code Scanner</div><div class="card-sub">Scan student virtual ID or enter pass number manually</div></div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tab-bar" style="padding:0 16px;margin-bottom:0">
+        <div class="tab ${S.tab===0?'on':''}" onclick="switchScanTab(0)">⌨️ Manual Input</div>
+        <div class="tab ${S.tab===1?'on':''}" onclick="switchScanTab(1)">📷 Camera Scan</div>
+      </div>
+
+      <!-- MANUAL INPUT PANEL -->
+      <div id="panel-manual" style="${S.tab!==0?'display:none':''}padding:16px">
+        <div style="background:var(--school-s);border:2px dashed rgba(66,36,103,.25);border-radius:var(--radius);padding:28px;text-align:center">
+          <div class="scan-ring">🎫</div>
+          <div class="bold mb8" style="font-size:14px">Enter or Scan Pass Number</div>
+          <div class="muted mb12" style="font-size:12px">Type the PGP or TGP number below, then click Verify</div>
+          <div class="flex gap8" style="max-width:380px;margin:0 auto 12px">
+            <input id="scan-in" class="fi" style="flex:1;font-family:monospace;text-align:center;font-size:13px;text-transform:uppercase;letter-spacing:.04em" placeholder="PGP-XXXXXXXX-XXXX" oninput="S.scanInput=this.value.toUpperCase();this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')doScan()"/>
+            <button class="btn btn-teal" onclick="doScan()" style="padding:8px 18px;font-size:13px">Verify</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Quick test — click any active pass:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">
+            ${DB.passes.filter(p=>['active','approved'].includes(p.status)).map(p=>`
+              <button onclick="quickFill('${p.no}')" style="background:${p.type==='permanent'?'var(--school-s)':'var(--teal-s)'};color:${p.type==='permanent'?'var(--school)':'var(--teal-d)'};border:1px solid ${p.type==='permanent'?'rgba(66,36,103,.2)':'rgba(0,201,177,.3)'};border-radius:99px;padding:3px 10px;font-size:10.5px;font-weight:600;cursor:pointer;font-family:monospace">
+                ${p.no}
+              </button>`).join('')}
+          </div>
         </div>
+      </div>
+
+      <!-- CAMERA PANEL -->
+      <div id="panel-camera" style="${S.tab!==1?'display:none':''}padding:16px">
+        <!-- Camera video — full width, tall -->
+        <div id="cam-wrap" style="background:#000;border-radius:var(--radius);overflow:hidden;position:relative;width:100%;height:420px">
+          <video id="cam-video" style="width:100%;height:100%;object-fit:cover;display:none"></video>
+          <canvas id="cam-canvas" style="display:none"></canvas>
+
+          <!-- Corner guide overlay -->
+          <div id="scan-guide" style="display:none;position:absolute;inset:0;pointer-events:none;background:rgba(0,0,0,.4)">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:220px;height:220px;background:transparent;box-shadow:0 0 0 9999px rgba(0,0,0,.5)">
+              <div style="position:absolute;top:-3px;left:-3px;width:28px;height:28px;border-top:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:3px 0 0 0"></div>
+              <div style="position:absolute;top:-3px;right:-3px;width:28px;height:28px;border-top:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 3px 0 0"></div>
+              <div style="position:absolute;bottom:-3px;left:-3px;width:28px;height:28px;border-bottom:4px solid var(--teal);border-left:4px solid var(--teal);border-radius:0 0 0 3px"></div>
+              <div style="position:absolute;bottom:-3px;right:-3px;width:28px;height:28px;border-bottom:4px solid var(--teal);border-right:4px solid var(--teal);border-radius:0 0 3px 0"></div>
+              <div id="scan-laser" style="display:none;position:absolute;left:0;right:0;height:2px;background:var(--teal);box-shadow:0 0 8px var(--teal);animation:laser 2s linear infinite"></div>
+            </div>
+            <div style="position:absolute;bottom:16px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.7);font-weight:600">Place QR code inside the frame</div>
+          </div>
+
+          <!-- Start button placeholder -->
+          <div id="cam-placeholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:24px">
+            <div style="font-size:52px;margin-bottom:14px;opacity:.6">📷</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:8px">Camera QR Scanner</div>
+            <div style="font-size:12px;color:#bbb;margin-bottom:20px;max-width:260px;line-height:1.6">
+              Point camera at any QR code on the virtual ID card.<br>
+              <span style="color:rgba(0,201,177,.8)">Tip: Use a printed copy or hold the phone screen away from camera to avoid focus issues.</span>
+            </div>
+            <button class="btn btn-teal" onclick="startCamera()" style="font-size:14px;padding:10px 24px">▶ Start Camera</button>
+          </div>
+        </div>
+
+        <!-- Debug strip — shows raw QR data as it reads -->
+        <div id="cam-debug" style="background:#111;border-radius:0 0 var(--radius) var(--radius);padding:8px 12px;font-family:monospace;font-size:11px;min-height:28px;display:none">
+          <span style="color:#666">Waiting for QR…</span>
+        </div>
+        <div id="cam-status" style="font-size:12px;text-align:center;margin-top:8px;min-height:20px;color:var(--text2)"></div>
+        <div style="margin-top:10px;padding:10px;background:var(--yellow-s);border:1px solid rgba(217,119,6,.2);border-radius:var(--radius-sm);font-size:11.5px;color:var(--yellow);line-height:1.6">
+          ⚠️ <b>Focus tip:</b> Laptop cameras struggle focusing on screens at close range. For best results: (1) print the QR code, (2) use a phone to display the virtual ID and scan from 20–30cm away, or (3) use <b>Manual Input</b> and type the pass number.
+        </div>
+      </div>
+
+      <!-- RESULT BOX — always visible below tabs, never destroyed -->
+      <div id="scan-result-box" style="margin:0 16px 16px"></div>
+    </div>
+
+    <!-- RIGHT: LIVE FEED -->
+    <div class="card" style="position:sticky;top:0">
+      <div class="card-head">
+        <div><div class="card-title">Live Exit Feed</div><div class="card-sub">${campus(myc)?.name||'Campus'} — Today</div></div>
         <div class="flex gap8 items-c">
           <div style="width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2s infinite"></div>
           <span style="font-size:11px;color:var(--green);font-weight:600">Live</span>
         </div>
       </div>
-      <div id="exit-feed" style="max-height:calc(100vh - 240px);overflow-y:auto">
+      <div id="exit-feed" style="max-height:calc(100vh - 200px);overflow-y:auto">
         ${todayFeed.length===0?`<div class="empty" style="padding:24px"><div class="empty-ico">🚶</div><div class="empty-txt">No exits today yet</div></div>`:''}
         ${todayFeed.map(l=>{
           const st=student(l.sid);const pa=pass(l.pid);
-          return `<div class="feed-row" style="padding:9px 14px;background:${l.result==='denied'?'#fff5f5':'transparent'}">
+          return `<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);${l.result==='denied'?'background:#fff5f5':''}">
             <div style="width:36px;height:36px;border-radius:50%;background:${l.result==='denied'?'var(--red-s)':'var(--school-s)'};display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:${l.result==='denied'?'var(--red)':'var(--school)'};flex-shrink:0">${initials(st?.name||'?')}</div>
             <div style="flex:1;min-width:0">
-              <div class="bold" style="font-size:12.5px">${st?.name}</div>
-              <div class="muted" style="font-size:10.5px">${st?.grade} · ${l.gate}</div>
+              <div class="bold" style="font-size:12.5px">${st?.name||'Unknown'}</div>
+              <div class="muted" style="font-size:10.5px">${st?.grade||'—'} · ${l.gate}</div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              ${l.result==='denied'?`<span class="badge b-rejected">Denied</span>`:`<span class="badge ${pa?.type==='permanent'?'b-perm':'b-temp'}">${pa?.type==='permanent'?'PGP':'TGP'}</span>`}
+              ${l.result==='denied'?`<span class="badge b-rejected" style="font-size:10px">Denied</span>`:`<span class="badge ${pa?.type==='permanent'?'b-perm':'b-temp'}" style="font-size:10px">${pa?.type==='permanent'?'PGP':'TGP'}</span>`}
               <div class="muted" style="font-size:10px;margin-top:2px">${fmtDT(l.at)}</div>
             </div>
           </div>`;
         }).join('')}
       </div>
-      <div style="padding:12px 14px;border-top:1px solid var(--border)">
-        <div class="alert alert-teal" style="margin-bottom:0;font-size:11.5px">
-          💡 Parent email notification is sent automatically on each exit log.
-        </div>
+      <div style="padding:10px 14px;border-top:1px solid var(--border)">
+        <div class="alert alert-teal" style="margin:0;font-size:11px">💡 Parent email sent automatically on each exit.</div>
       </div>
     </div>
-  </div>`;}
-
+  </div>`;
+}
 function doScan(){
   const raw=g('scan-in')?.value?.trim()||S.scanInput.trim();
   if(!raw){toast('Enter a pass number','warn');return;}
@@ -694,6 +719,31 @@ function doScan(){
 
 function logExit(passId,studentId){
   logExitDirect(passId,studentId);
+}
+
+function switchScanTab(tab){
+  stopCamera();
+  S.tab=tab;
+  const m=g('panel-manual'), c=g('panel-camera');
+  if(m) m.style.display=tab===0?'':'none';
+  if(c) c.style.display=tab===1?'':'none';
+  const tabs=document.querySelectorAll('.tab-bar .tab');
+  tabs.forEach((t,i)=>{
+    t.classList.toggle('on',i===tab);
+  });
+  clearScanResult();
+}
+
+function quickFill(no){
+  S.scanInput=no;
+  S.tab=0;
+  const m=g('panel-manual'),c=g('panel-camera');
+  if(m) m.style.display='';
+  if(c) c.style.display='none';
+  const inp=g('scan-in');
+  if(inp) inp.value=no;
+  // Auto-verify immediately
+  setTimeout(doScan,80);
 }
 
 let camStream=null,scanInt=null,scanLocked=false;
@@ -706,6 +756,8 @@ function startCamera(){
   }
   const ph=g('cam-placeholder');
   if(ph) ph.style.display='none';
+  const dbg=g('cam-debug');
+  if(dbg){dbg.style.display='block';dbg.innerHTML='<span style="color:#888">Starting camera…</span>';}
 
   navigator.mediaDevices.getUserMedia({
     video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}
@@ -717,11 +769,14 @@ function startCamera(){
     v.style.display='block';
     v.play();
 
-    const s=g('cam-status');
-    if(s) s.innerHTML='<span style="color:var(--teal-d);font-weight:600">📡 Scanning… hold QR steady inside the green frame</span>';
     const guide=g('scan-guide');
     if(guide) guide.style.display='block';
+    const laser=g('scan-laser');
+    if(laser) laser.style.display='block';
+    const s=g('cam-status');
+    if(s) s.innerHTML='<span style="color:var(--teal-d);font-weight:600">📡 Scanning… hold QR code steady inside the frame</span>';
 
+    let frameCount=0;
     scanInt=setInterval(()=>{
       if(scanLocked) return;
       const canvas=g('cam-canvas');
@@ -732,6 +787,12 @@ function startCamera(){
       const ctx=canvas.getContext('2d');
       ctx.drawImage(video,0,0);
       if(!window.jsQR) return;
+
+      // Show frame counter so user knows it's actively scanning
+      frameCount++;
+      const dbg2=g('cam-debug');
+      if(dbg2&&frameCount%10===0) dbg2.innerHTML=`<span style="color:#555">Scanning frame ${frameCount}… (${video.videoWidth}×${video.videoHeight})</span>`;
+
       const code=jsQR(
         ctx.getImageData(0,0,canvas.width,canvas.height).data,
         canvas.width,canvas.height,
@@ -740,15 +801,19 @@ function startCamera(){
       if(code&&code.data){
         scanLocked=true;
         stopCamera();
+        const raw=code.data.trim();
+        if(dbg2) dbg2.innerHTML=`<span style="color:#3ddc84;font-weight:700">✅ QR READ: ${raw}</span>`;
         const s2=g('cam-status');
-        if(s2) s2.innerHTML=`<span style="color:var(--green);font-weight:700">✅ QR read — processing…</span>`;
-        // Inject result directly into DOM — no full page re-render
-        injectScanResult(code.data.trim());
+        if(s2) s2.innerHTML=`<span style="color:var(--green);font-weight:700">✅ QR detected — verifying…</span>`;
+        // Inject result without re-rendering
+        setTimeout(()=>injectScanResult(raw), 100);
       }
     },300);
   }).catch(()=>{
     const ph2=g('cam-placeholder');
-    if(ph2){ph2.style.display='flex';ph2.style.position='absolute';}
+    if(ph2){ph2.style.display='flex';}
+    const dbg3=g('cam-debug');
+    if(dbg3) dbg3.innerHTML='<span style="color:var(--red)">Camera access denied</span>';
     toast('Camera access denied — use Manual Input tab','danger');
   });
 }
@@ -1032,39 +1097,52 @@ function pgTGP(){
 // STUDENTS
 // ════════════════════════════════════════════════════════════════
 function pgStudents(){
-  let students=DB.students;
-  if(S.searchS) students=students.filter(s=>s.name.toLowerCase().includes(S.searchS.toLowerCase())||s.sid.includes(S.searchS)||s.grade.toLowerCase().includes(S.searchS.toLowerCase()));
+  // Only students who have at least one pass application — not the entire school
+  const studentIdsWithPasses=new Set(DB.passes.map(p=>p.sid));
+  let students=DB.students.filter(s=>studentIdsWithPasses.has(s.id));
+  if(S.searchS) students=students.filter(s=>
+    s.name.toLowerCase().includes(S.searchS.toLowerCase())||
+    s.sid.includes(S.searchS)||
+    s.grade.toLowerCase().includes(S.searchS.toLowerCase())
+  );
+  const allStudentsCount=DB.students.length;
   return `
+  <div class="alert alert-info mb12">
+    📋 This registry shows only students who have <b>applied for a gate pass</b> (PGP or TGP). The full school enrollment is managed in your MIS. Students appear here only after a pass application is submitted.
+  </div>
   <div class="card">
     <div class="card-head">
       <div class="search-wrap" style="width:260px">
         <span class="si">🔍</span>
         <input class="fi" style="background:#fff" placeholder="Search name, ID, grade…" value="${S.searchS}" oninput="set({searchS:this.value})"/>
       </div>
-      <div class="flex gap8">
-        <span class="muted" style="font-size:11.5px">${students.length} students</span>
-        <button class="btn btn-ghost btn-xs" onclick="openModal('batchUpload')">⬆ Batch CSV</button>
+      <div class="flex gap8 items-c">
+        <span class="muted" style="font-size:11.5px">${students.length} with passes (${allStudentsCount} total enrolled)</span>
+        <button class="btn btn-ghost btn-xs" onclick="openModal('batchUpload')">⬆ Batch Enroll</button>
       </div>
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th></th><th>Name</th><th>Student ID</th><th>Grade/Section</th><th>Campus</th><th>Parent Email</th><th>Active Pass</th><th>Actions</th></tr></thead>
+        <thead><tr><th></th><th>Name</th><th>Student ID</th><th>Grade/Section</th><th>Campus</th><th>Parent Email</th><th>Active PGP</th><th>TGP Today</th><th>Actions</th></tr></thead>
         <tbody>
+        ${students.length===0?`<tr><td colspan="9"><div class="empty"><div class="empty-ico">👥</div><div class="empty-txt">No pass applications yet</div><div class="empty-sub">Students appear here after submitting a PGP or TGP application</div></div></td></tr>`:''}
         ${students.map(st=>{
           const ap=DB.passes.find(p=>p.sid===st.id&&p.type==='permanent'&&p.status==='active');
+          const tgpToday=DB.passes.find(p=>p.sid===st.id&&p.type==='temporary'&&p.from===today()&&['approved','pending','for_approval'].includes(p.status));
           const c=campus(st.campus);
           return `<tr>
             <td style="font-size:26px;padding:8px 12px">${st.photo}</td>
-            <td><div class="bold" style="font-size:12.5px">${st.name}</div><div class="muted" style="font-size:10px">${st.pEmail}</div></td>
+            <td><div class="bold" style="font-size:12.5px">${st.name}</div><div class="muted" style="font-size:10px">${st.parent||'—'}</div></td>
             <td class="mono" style="font-size:12px">${st.sid}</td>
             <td class="muted" style="font-size:12px">${st.grade} - ${st.section}</td>
             <td class="muted" style="font-size:11px">${c?.name||'—'}</td>
             <td class="muted" style="font-size:11px">${st.pEmail}</td>
-            <td>${ap?`<span class="badge b-active">PGP Active</span>`:'<span class="muted" style="font-size:11px">—</span>'}</td>
+            <td>${ap?`<span class="badge b-active" style="font-size:10px">✓ Active</span>`:`<span class="muted" style="font-size:11px">—</span>`}</td>
+            <td>${tgpToday?`<span class="badge b-${tgpToday.status==='approved'?'approved':'pending'}" style="font-size:10px">${tgpToday.status==='approved'?'✓ Approved':'Pending'}</span>`:`<span class="muted" style="font-size:11px">—</span>`}</td>
             <td>
               <div class="tbl-actions">
                 ${can(['system_admin','deputy_principal','discipline_head','student_affairs'])?`<button class="btn btn-ghost btn-xs" onclick="openModal('editStudent',{sid:'${st.id}'})">✏️ Edit</button>`:''}
-                ${ap?`<button class="btn btn-ghost btn-xs" onclick="openModal('viewPass',{passId:'${ap.id}'})">View Pass</button>`:`<button class="btn btn-school btn-xs" onclick="openModal('newPGP',{sid:'${st.id}'})">Apply Pass</button>`}
+                ${ap?`<button class="btn btn-ghost btn-xs" onclick="openModal('viewPass',{passId:'${ap.id}'})">View Pass</button>`:`<button class="btn btn-school btn-xs" onclick="openModal('newPGP',{sid:'${st.id}'})">Apply PGP</button>`}
               </div>
             </td>
           </tr>`;
