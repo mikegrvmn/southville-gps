@@ -236,7 +236,7 @@ textarea.fi{resize:vertical;min-height:68px}
 .rbar-val{width:28px;text-align:right;font-weight:700;flex-shrink:0}
 
 /* ── VIDEO/CAMERA ────────────────────────────────────────────── */
-#cam-video{width:100%;border-radius:10px;display:none;background:#000;max-height:220px;object-fit:cover}
+#cam-video{width:100%;display:none;background:#000;object-fit:cover}
 </style>
 </head>
 <body>
@@ -721,8 +721,8 @@ function pgScanner(){
       <!-- CAMERA PANEL -->
       <div id="panel-camera" style="display:${S.tab===1?'block':'none'};padding:16px">
         <!-- Camera video — full width, tall -->
-        <div id="cam-wrap" style="background:#000;border-radius:var(--radius);overflow:hidden;position:relative;width:100%;height:420px">
-          <video id="cam-video" style="width:100%;height:100%;object-fit:cover;display:none"></video>
+        <div id="cam-wrap" style="background:#000;border-radius:var(--radius);overflow:hidden;position:relative;width:100%;aspect-ratio:16/9;min-height:200px">
+          <video id="cam-video" style="width:100%;height:100%;object-fit:cover;display:none;position:absolute;top:0;left:0"></video>
           <canvas id="cam-canvas" style="display:none"></canvas>
 
           <!-- Corner guide overlay -->
