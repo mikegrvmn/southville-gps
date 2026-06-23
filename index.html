@@ -646,37 +646,7 @@ function pgScanner(){
           </div>
           <div id="cam-status" style="font-size:11.5px;text-align:center;margin-top:8px;min-height:18px;color:var(--text2)"></div>
         </div>`}
-        ${sr?`<div style="padding:0 16px 16px">
-          <div class="${sr.ok?'scan-ok':'scan-fail'}">
-            <div class="flex gap8 items-c mb8">
-              <span style="font-size:28px">${sr.ok?'✅':'❌'}</span>
-              <div>
-                <div class="bold" style="font-size:14px;color:${sr.ok?'var(--green)':'var(--red)'}">${sr.ok?'ACCESS GRANTED':'ACCESS DENIED'}</div>
-                <div class="muted" style="font-size:11.5px">${sr.reason}</div>
-              </div>
-            </div>
-            ${sr.st?`<div style="display:flex;gap:12px;align-items:center;padding:10px;background:rgba(0,0,0,.04);border-radius:8px;margin-bottom:10px">
-              <span style="font-size:34px">${sr.st.photo}</span>
-              <div style="flex:1">
-                <div class="bold" style="font-size:14px">${sr.st.name}</div>
-                <div class="muted" style="font-size:11px">${sr.st.grade} - ${sr.st.section} · ${campus(sr.st.campus)?.name}</div>
-                <div class="muted" style="font-size:10.5px">ID: ${sr.st.sid}</div>
-                <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:3px">
-                  ${(sr.pa.gates||[]).map(g=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:2px 7px;font-size:10px;font-weight:600">${g}</span>`).join('')}
-                </div>
-                <div style="font-size:11px;color:var(--teal-d);font-weight:600;margin-top:3px">🚌 ${sr.pa.exit}</div>
-              </div>
-              <div>
-                <span class="badge b-perm" style="font-size:10px">${sr.pa.type==='permanent'?'PGP':'TGP'}</span>
-                <div id="sr-qr" style="background:#fff;border-radius:8px;padding:6px;margin-top:6px;width:72px;height:72px"></div>
-              </div>
-            </div>
-            <div class="flex gap8">
-              ${sr.ok?`<button class="btn btn-teal btn-sm" style="flex:1;justify-content:center" onclick="logExit('${sr.pa.id}','${sr.st.id}')">✓ Log Exit</button>`:''}
-              <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center" onclick="set({scanResult:null,scanInput:''})">Clear</button>
-            </div>`:''}
-          </div>
-        </div>`:''}
+        <div id="scan-result-box"></div>
       </div>
     </div>
 
@@ -717,75 +687,38 @@ function pgScanner(){
   </div>`;}
 
 function doScan(){
-  const raw = S.scanInput.trim();
+  const raw=g('scan-in')?.value?.trim()||S.scanInput.trim();
   if(!raw){toast('Enter a pass number','warn');return;}
-
-  // Try to decode base64 QR payload first
-  let input = raw.toUpperCase();
-  try {
-    const decoded = JSON.parse(atob(raw));
-    if(decoded && decoded.pgp) input = decoded.pgp.toUpperCase();
-  } catch(e) { /* not base64, use raw */ }
-
-  // Also try direct match without case sensitivity
-  const pa = DB.passes.find(p =>
-    p.no.toUpperCase() === input ||
-    p.no.toUpperCase() === raw.toUpperCase()
-  );
-
-  if(!pa){
-    set({scanResult:{ok:false,reason:`Pass "${raw}" not found in the system. Check the pass number and try again.`,st:null,pa:{id:null,no:raw,gates:[],exit:'',type:'',status:''}}});
-    return;
-  }
-  const st=student(pa.sid);
-  let denied=false,reason='';
-  if(pa.status==='revoked')    {denied=true;reason='This pass has been permanently revoked.';}
-  else if(pa.status==='suspended') {denied=true;reason='This pass is currently suspended.';}
-  else if(pa.status==='rejected')  {denied=true;reason='This pass application was rejected.';}
-  else if(pa.type==='permanent'&&pa.status!=='active'){denied=true;reason=`Pass status is '${pa.status}' — must be active to use.`;}
-  else if(pa.type==='temporary'){
-    if(pa.status!=='approved'){denied=true;reason='Temporary pass has not been approved yet.';}
-    else if(pa.from!==today()){denied=true;reason=`Temporary pass only valid on ${fmtDate(pa.from)}. Today is ${fmtDate(today())}.`;}
-  }
-  set({scanResult:{ok:!denied,reason:denied?reason:'✓ Valid pass — all checks passed.',st,pa}});
+  injectScanResult(raw);
 }
 
 function logExit(passId,studentId){
-  const pa=pass(passId),st=student(studentId);
-  if(!pa||!st)return;
-  const gate=(pa.gates||['Gate 1'])[0];
-  const myc=DB.currentUser.campus;
-  DB.logs.push({id:'l'+Date.now(),pid:passId,sid:studentId,gate,campus:myc,at:new Date().toISOString(),result:'granted',method:'camera'});
-  toast(`✅ Exit logged for ${st.name}. Email sent to ${st.pEmail}`,'ok');
-  set({scanResult:null,scanInput:''});
+  logExitDirect(passId,studentId);
 }
 
 let camStream=null,scanInt=null,scanLocked=false;
 
 function startCamera(){
-  const ph=g('cam-placeholder');
-  const vid=g('cam-video');
-  const stat=g('cam-status');
+  scanLocked=false;
   if(!navigator.mediaDevices?.getUserMedia){
-    toast('Camera not available — use Manual Input tab','warn');
+    toast('Camera not supported — use Manual Input','warn');
     return;
   }
-  scanLocked=false;
+  const ph=g('cam-placeholder');
   if(ph) ph.style.display='none';
 
   navigator.mediaDevices.getUserMedia({
-    video:{facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}}
+    video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}
   }).then(stream=>{
     camStream=stream;
-    if(!g('cam-video')){stream.getTracks().forEach(t=>t.stop());return;}
     const v=g('cam-video');
+    if(!v){stream.getTracks().forEach(t=>t.stop());return;}
     v.srcObject=stream;
     v.style.display='block';
     v.play();
 
-    // Update status text
     const s=g('cam-status');
-    if(s) s.innerHTML='<span style="color:var(--teal-d);font-weight:600">📡 Scanning… hold QR code steady in frame</span>';
+    if(s) s.innerHTML='<span style="color:var(--teal-d);font-weight:600">📡 Scanning… hold QR steady inside the green frame</span>';
     const guide=g('scan-guide');
     if(guide) guide.style.display='block';
 
@@ -794,50 +727,158 @@ function startCamera(){
       const canvas=g('cam-canvas');
       const video=g('cam-video');
       if(!canvas||!video||!video.videoWidth) return;
-
       canvas.width=video.videoWidth;
       canvas.height=video.videoHeight;
       const ctx=canvas.getContext('2d');
       ctx.drawImage(video,0,0);
-      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
-
       if(!window.jsQR) return;
-      // attemptBoth = tries normal AND inverted — handles glare on phone screens
-      const code=jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'attemptBoth'});
-      if(code && code.data){
-        scanLocked=true; // prevent multiple triggers
+      const code=jsQR(
+        ctx.getImageData(0,0,canvas.width,canvas.height).data,
+        canvas.width,canvas.height,
+        {inversionAttempts:'attemptBoth'}
+      );
+      if(code&&code.data){
+        scanLocked=true;
         stopCamera();
-
-        // Show what was detected before switching tab
-        const detected=code.data.trim();
-        const statusEl=g('cam-status');
-        if(statusEl) statusEl.innerHTML=`<span style="color:var(--green);font-weight:700">✅ QR Detected: ${detected}</span>`;
-
-        // Switch to manual tab and fill input, then scan
-        S.tab=0;
-        S.scanInput=detected;
-
-        // Small delay so DOM updates before doScan reads the input
-        setTimeout(()=>{
-          render();
-          setTimeout(doScan, 80);
-        }, 150);
+        const s2=g('cam-status');
+        if(s2) s2.innerHTML=`<span style="color:var(--green);font-weight:700">✅ QR read — processing…</span>`;
+        // Inject result directly into DOM — no full page re-render
+        injectScanResult(code.data.trim());
       }
     },300);
-
-  }).catch(err=>{
-    console.error('Camera error:', err);
-    if(ph) ph.style.display='block';
-    const s=g('cam-status');
-    if(s) s.innerHTML='<span style="color:var(--red)">Camera access denied or unavailable</span>';
-    toast('Camera access denied — switch to Manual Input tab','danger');
+  }).catch(()=>{
+    const ph2=g('cam-placeholder');
+    if(ph2){ph2.style.display='flex';ph2.style.position='absolute';}
+    toast('Camera access denied — use Manual Input tab','danger');
   });
 }
 
 function stopCamera(){
   if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null;}
-  clearInterval(scanInt);
-  scanInt=null;
+  clearInterval(scanInt);scanInt=null;
+}
+
+// KEY FIX: inject scan result directly into #scan-result-box without re-rendering
+function injectScanResult(raw){
+  let input=raw.toUpperCase().trim();
+  try{const d=JSON.parse(atob(raw));if(d&&d.pgp)input=d.pgp.toUpperCase();}catch(e){}
+
+  const pa=DB.passes.find(p=>p.no.toUpperCase()===input||p.no.toUpperCase()===raw.toUpperCase());
+  let ok=false,reason='',st=null;
+
+  if(!pa){
+    reason=`Pass "${raw}" not found in the system.`;
+  } else {
+    st=student(pa.sid);
+    if(pa.status==='revoked')        reason='This pass has been permanently revoked.';
+    else if(pa.status==='suspended') reason='This pass is currently suspended.';
+    else if(pa.status==='rejected')  reason='This pass application was rejected.';
+    else if(pa.type==='permanent'&&pa.status!=='active') reason=`Pass status is '${pa.status}' — must be active.`;
+    else if(pa.type==='temporary'){
+      if(pa.status!=='approved')     reason='Temporary pass not yet approved.';
+      else if(pa.from!==today())     reason=`Only valid on ${fmtDate(pa.from)}.`;
+      else ok=true;
+    } else ok=true;
+    if(!ok&&!reason) reason='Access denied.';
+  }
+
+  S.scanResult={ok,reason,st,pa:pa||{id:null,no:raw,gates:[],exit:'',type:'',status:''}};
+
+  const box=g('scan-result-box');
+  if(!box) return;
+
+  if(!pa||!st){
+    box.innerHTML=`<div class="scan-fail" style="margin:12px 16px 0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:26px">❌</span>
+        <div style="flex:1">
+          <div style="font-weight:700;color:var(--red);font-size:14px">ACCESS DENIED</div>
+          <div style="font-size:12px;color:var(--text2)">${reason}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="clearScanResult()">Clear</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  const gates=(pa.gates||[]).map(gt=>`<span style="background:var(--school-s);color:var(--school);border-radius:99px;padding:2px 8px;font-size:10px;font-weight:600">${gt}</span>`).join(' ');
+
+  box.innerHTML=`
+  <div class="${ok?'scan-ok':'scan-fail'}" style="margin:12px 16px 0">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:26px">${ok?'✅':'❌'}</span>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:15px;color:${ok?'var(--green)':'var(--red)'}">${ok?'ACCESS GRANTED':'ACCESS DENIED'}</div>
+        <div style="font-size:12px;color:var(--text2)">${reason}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="clearScanResult()">Clear</button>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;padding:10px;background:rgba(0,0,0,.04);border-radius:8px;margin-bottom:10px">
+      <span style="font-size:36px">${st.photo}</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:14px">${st.name}</div>
+        <div style="font-size:11px;color:var(--text2)">${st.grade} - ${st.section} · ${campus(st.campus)?.name}</div>
+        <div style="font-size:10.5px;color:var(--text3)">ID: ${st.sid} · Guardian: ${st.parent}</div>
+        <div style="margin-top:5px">${gates}</div>
+        <div style="font-size:11px;color:var(--teal-d);font-weight:600;margin-top:3px">🚌 ${pa.exit}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      ${ok?`<button class="btn btn-teal" style="flex:1;justify-content:center" onclick="logExitDirect('${pa.id}','${st.id}')">✓ Log Exit &amp; Notify Parent</button>`:`<button class="btn btn-danger btn-sm" onclick="logDeniedDirect('${pa.id}','${st.id}')">Log Denied Attempt</button>`}
+    </div>
+  </div>`;
+}
+
+function clearScanResult(){
+  const box=g('scan-result-box');
+  if(box) box.innerHTML='';
+  const inp=g('scan-in');
+  if(inp) inp.value='';
+  S.scanResult=null; S.scanInput='';
+}
+
+function logExitDirect(passId,studentId){
+  const pa=pass(passId),st=student(studentId);
+  if(!pa||!st) return;
+  const gate=(pa.gates||['Gate 2 (Main Gate)'])[0];
+  const myc=DB.currentUser.campus;
+  DB.logs.push({id:'l'+Date.now(),pid:passId,sid:studentId,gate,campus:myc,at:new Date().toISOString(),result:'granted',method:'camera'});
+  // Update live feed directly without re-render
+  const feed=g('exit-feed');
+  if(feed){
+    // Remove empty state if present
+    const empty=feed.querySelector('.empty');
+    if(empty) empty.remove();
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);animation:toastin .3s ease';
+    row.innerHTML=`
+      <div style="width:36px;height:36px;border-radius:50%;background:var(--school-s);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--school);flex-shrink:0">${initials(st.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:12.5px">${st.name}</div>
+        <div style="font-size:10.5px;color:var(--text2)">${st.grade} · ${gate}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <span class="badge ${pa.type==='permanent'?'b-perm':'b-temp'}">${pa.type==='permanent'?'PGP':'TGP'}</span>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Just now</div>
+      </div>`;
+    feed.insertBefore(row, feed.firstChild);
+  }
+  toast(`✅ Exit logged for ${st.name}. Email sent to ${st.pEmail}`);
+  clearScanResult();
+  // Switch back to manual tab cleanly
+  S.tab=0; S.scanInput='';
+  setTimeout(render, 400);
+}
+
+function logDeniedDirect(passId,studentId){
+  const pa=pass(passId),st=student(studentId);
+  if(!pa||!st) return;
+  const gate=(pa.gates||['Gate 1'])[0];
+  DB.logs.push({id:'l'+Date.now(),pid:passId,sid:studentId,gate,campus:DB.currentUser.campus,at:new Date().toISOString(),result:'denied',method:'camera'});
+  toast(`Denied attempt logged for ${st?.name||'Unknown'}`,'warn');
+  clearScanResult();
+  S.tab=0;
+  setTimeout(render, 400);
 }
 
 // ════════════════════════════════════════════════════════════════
